@@ -1,0 +1,49 @@
+{
+  "name": "lv-zero",
+  "folders": [
+    {
+      "path": ".",
+      "label": "lv-zero Root",
+      "isPrimary": true
+    },
+    {
+      "path": "C:/Users/LAVG/Documents/chess-lvzero",
+      "label": "Chess LV-Zero"
+    },
+    {
+      "path": "C:/Users/LAVG/PROYECTOS/landing-sec11",
+      "label": "Landing Sec11"
+    },
+    {
+      "path": "C:/Users/LAVG/PROYECTOS/editor de videos",
+      "label": "Editor de Videos"
+    },
+    {
+      "path": "C:/Users/LAVG/antigravity/Rueda-del-Desmadre",
+      "label": "Rueda del Desmadre"
+    },
+    {
+      "path": "C:/Users/LAVG/Documents/PROYECTO SIAE",
+      "label": "Proyecto SIAE"
+    },
+    {
+      "path": "C:/Users/LAVG/Documents/antigravity/intelligent-pythagoras",
+      "label": "Intelligent Pythagoras"
+    }
+  ],
+  "settings": {
+    "fileAccessPolicy": "AGENT_SETTING_POLICY_ASK",
+    "internetPolicy": "AGENT_SETTING_POLICY_ASK",
+    "autoExecutionPolicy": "CASCADE_COMMANDS_AUTO_EXECUTION_OFF",
+    "artifactReviewMode": "ARTIFACT_REVIEW_MODE_ALWAYS"
+  },
+  "permissionGrants": {
+    "allow": [
+      "command(powershell)",
+      "command(npx)",
+      "command(npm install)",
+      "command(git clone)",
+      "command(Copy-Item)"
+    ]
+  }
+}

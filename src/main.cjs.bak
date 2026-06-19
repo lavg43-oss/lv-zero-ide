@@ -1,0 +1,1962 @@
+/**
+ * lv-zero — Electron Main Process (CJS)
+ *
+ * v2.1 — Reactive IPC Broadcast
+ *   + shell:output → terminal:data forwarding (Terminal Reactiva)
+ *   + File watcher auto-start for fs:update events (Explorador Reactivo)
+ *   + Auto-open editor when agent creates/modifies files (Editor Reactivo)
+ *   + View menu IPC handlers for panel toggle
+ *
+ * v2.0 — IDE Edition
+ *   Proceso principal de Electron.
+ *
+ * v2.3 — Electron API Resolution
+ *   Uses direct `require("electron")`. This relies on Electron's built-in
+ *   module interception. If `browser_init.js` (electron/js2c/browser_init)
+ *   from the V8 code cache fails to load, `require("electron")` may resolve
+ *   to the npm package (returns string path to electron.exe) instead of the
+ *   real Electron API.
+ *
+ *   Known issue: Electron 42 on Node.js v24 may sometimes fail to load
+ *   the browser_init code cache, breaking `require("electron")`.
+ */
+
+const { app, BrowserWindow, ipcMain, dialog, session, Menu } = require("electron");
+const path = require("path");
+const fs = require("fs");
+const os = require("os");
+const { execSync } = require("child_process");
+
+// ─── File Logger (portable/diagnostics) ─────────────────────────────────────
+// Writes ALL console output to a file in userData/logs/.
+// Critical for debugging silent crashes in portable mode.
+let _logPath = null;
+let _logStream = null;
+
+function setupFileLogger() {
+  try {
+    const logDir = path.join(app.getPath("userData"), "logs");
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    _logPath = path.join(logDir, `lv-zero-${timestamp}.log`);
+    _logStream = fs.createWriteStream(_logPath, { flags: "a" });
+
+    const origLog = console.log;
+    const origError = console.error;
+    const origWarn = console.warn;
+
+    console.log = (...args) => {
+      _logStream.write(`[LOG] ${new Date().toISOString()} ${args.join(" ")}\n`);
+      origLog.apply(console, args);
+    };
+    console.error = (...args) => {
+      _logStream.write(`[ERR] ${new Date().toISOString()} ${args.join(" ")}\n`);
+      origError.apply(console, args);
+    };
+    console.warn = (...args) => {
+      _logStream.write(`[WRN] ${new Date().toISOString()} ${args.join(" ")}\n`);
+      origWarn.apply(console, args);
+    };
+
+    process.on("uncaughtException", (err) => {
+      _logStream.write(`[FATAL] ${new Date().toISOString()} Uncaught: ${err.stack || err.message}\n`);
+      _logStream.end();
+    });
+
+    process.on("unhandledRejection", (reason) => {
+      _logStream.write(`[FATAL] ${new Date().toISOString()} Unhandled Rejection: ${reason}\n`);
+    });
+
+    console.log(`[Main] File logger started → ${_logPath}`);
+    return _logPath;
+  } catch (err) {
+    // Can't log to file if logger setup fails, use stderr
+    process.stderr.write(`[Main] Failed to setup file logger: ${err.message}\n`);
+    return null;
+  }
+}
+
+// ─── Orchestrator (loaded dynamically) ──────────────────────────────────────
+let orchestrator = null;
+
+// ─── Bridges (loaded dynamically) ──────────────────────────────────────────
+let terminalBridge = null;
+let fileBridge = null;
+
+let mainWindow = null;
+
+// ─── Panel visibility state (for View menu) ─────────────────────────────────
+const panelState = {
+  explorer: true,
+  chat: true,
+  terminal: true,
+  inspector: false,
+};
+
+// ─── Pending Diff Reviews (Misión 2) ────────────────────────────────────────
+// Map<filePath, { originalContent, newContent }>
+const _pendingDiffs = new Map();
+
+// ─── Auto-Approve Settings (Sistema de Permisos) ────────────────────────────
+let _autoApproveEdits = false;
+let _autoApproveTerminal = false;
+
+// ─── Auto-Git Checkpoint: debounced commit timer ────────────────────────────
+let _autoCommitTimer = null;
+const WRITE_SKILL_NAMES = new Set(["file_manager", "apply_diff", "write_to_file"]);
+
+// ─── Project Management ─────────────────────────────────────────────────────
+let currentProjectPath = null;
+let hasApiKey = false;
+
+// ─── Window Creation ────────────────────────────────────────────────────────
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1600,
+    height: 1000,
+    minWidth: 1200,
+    minHeight: 700,
+    title: "lv-zero — Autonomous System Architect",
+    icon: path.resolve(__dirname, "..", "LOGOLVZERO.png"),
+    backgroundColor: "#1e1e1e",
+    show: false,
+    webPreferences: {
+      preload: path.resolve(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      // Prevent silent crash on Win10 when notifications service is disabled
+      notifications: false,
+      // Enable WebGL for Monaco editor rendering
+      webgl: true,
+    },
+  });
+
+  // Load the UI
+  mainWindow.loadFile(path.resolve(__dirname, "..", "ui", "index.html"));
+
+  // Show window when ready (avoids white flash)
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+    console.log("[Main] Window shown");
+  });
+
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+
+  // Log WebContent errors
+  mainWindow.webContents.on("console-message", (_event, level, message) => {
+    const prefix = ["LOG", "INFO", "WARN", "ERR"][level] || "LOG";
+    console.log(`[Renderer:${prefix}] ${message}`);
+  });
+
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    console.error(`[Main] Failed to load UI: ${errorCode} ${errorDescription}`);
+  });
+
+  // DevTools in development
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.webContents.openDevTools();
+  }
+}
+
+// ─── Application Menu (with View → Toggle Panels) ─────────────────────────
+
+function setupAppMenu() {
+  const template = [
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "New Project...",
+          accelerator: "CmdOrCtrl+Shift+N",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("project:menuAction", { action: "new" });
+            }
+          },
+        },
+        {
+          label: "Open Project...",
+          accelerator: "CmdOrCtrl+Shift+O",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("project:menuAction", { action: "open" });
+            }
+          },
+        },
+        {
+          label: "Close Project",
+          accelerator: "CmdOrCtrl+Shift+W",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("project:menuAction", { action: "close" });
+            }
+          },
+        },
+        { type: "separator" },
+        {
+          label: "Duplicate Project...",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("project:menuAction", { action: "duplicate" });
+            }
+          },
+        },
+        {
+          label: "Export Project as ZIP...",
+          click: () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send("project:menuAction", { action: "export" });
+            }
+          },
+        },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
+    {
+      label: "Edit",
+      submenu: [
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { role: "selectAll" },
+      ],
+    },
+    {
+      label: "View",
+      submenu: [
+        {
+          label: "Toggle Explorer Panel",
+          accelerator: "CmdOrCtrl+B",
+          click: () => {
+            panelState.explorer = !panelState.explorer;
+            mainWindow?.webContents.send("panel:visibility", {
+              panelId: "explorer",
+              visible: panelState.explorer,
+            });
+          },
+        },
+        {
+          label: "Toggle Chat Panel",
+          accelerator: "CmdOrCtrl+Shift+C",
+          click: () => {
+            panelState.chat = !panelState.chat;
+            mainWindow?.webContents.send("panel:visibility", {
+              panelId: "chat",
+              visible: panelState.chat,
+            });
+          },
+        },
+        {
+          label: "Toggle Terminal Panel",
+          accelerator: "CmdOrCtrl+J",
+          click: () => {
+            panelState.terminal = !panelState.terminal;
+            mainWindow?.webContents.send("panel:visibility", {
+              panelId: "terminal",
+              visible: panelState.terminal,
+            });
+          },
+        },
+        {
+          label: "Toggle Inspector Panel",
+          accelerator: "CmdOrCtrl+Shift+I",
+          click: () => {
+            panelState.inspector = !panelState.inspector;
+            mainWindow?.webContents.send("panel:visibility", {
+              panelId: "inspector",
+              visible: panelState.inspector,
+            });
+          },
+        },
+        { type: "separator" },
+        { role: "toggleDevTools" },
+        { role: "reload" },
+        { role: "forceReload" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "About lv-zero",
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              type: "info",
+              title: "About lv-zero",
+              message: "lv-zero — Autonomous System Architect",
+              detail: `Version 4.1.0\nReactivo IPC Broadcast\n\nOpen Source • Powered by DeepSeek`,
+            });
+          },
+        },
+      ],
+    },
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
+// ─── Auth Config Path (Fase 5) ─────────────────────────────────────────────
+// Uses app.getPath('userData') — OS-specific safe path for user configuration.
+// This is only available after app.whenReady(), so we compute it inside init().
+
+function getConfigPath() {
+  return path.join(app.getPath("userData"), "config.json");
+}
+
+// ─── Project Registry ───────────────────────────────────────────────────────
+
+function getProjectsFilePath() {
+  return path.join(app.getPath("userData"), "projects.json");
+}
+
+function loadProjectRegistry() {
+  try {
+    const filePath = getProjectsFilePath();
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const data = JSON.parse(raw);
+      if (data && Array.isArray(data.recentProjects)) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn("[Main] Could not load project registry:", err.message);
+  }
+  return { recentProjects: [], currentProjectPath: null };
+}
+
+function saveProjectRegistry(registry) {
+  try {
+    const filePath = getProjectsFilePath();
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(filePath, JSON.stringify(registry, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("[Main] Could not save project registry:", err.message);
+  }
+}
+
+function addRecentProject(projectPath) {
+  const registry = loadProjectRegistry();
+  // Remove existing entry with same path (dedupe)
+  registry.recentProjects = registry.recentProjects.filter((p) => p.path !== projectPath);
+  // Add to front
+  registry.recentProjects.unshift({
+    name: path.basename(projectPath),
+    path: projectPath,
+    lastOpened: new Date().toISOString(),
+  });
+  // Cap at 20
+  if (registry.recentProjects.length > 20) {
+    registry.recentProjects = registry.recentProjects.slice(0, 20);
+  }
+  registry.currentProjectPath = projectPath;
+  currentProjectPath = projectPath;
+  saveProjectRegistry(registry);
+  return registry;
+}
+
+function removeRecentProject(projectPath) {
+  const registry = loadProjectRegistry();
+  registry.recentProjects = registry.recentProjects.filter((p) => p.path !== projectPath);
+  if (registry.currentProjectPath === projectPath) {
+    registry.currentProjectPath = null;
+    currentProjectPath = null;
+  }
+  saveProjectRegistry(registry);
+}
+
+/**
+ * Read the stored API key from userData config file.
+ * Returns the key string or null if not found.
+ */
+function readStoredApiKey() {
+  const configPath = getConfigPath();
+  try {
+    if (fs.existsSync(configPath)) {
+      const raw = fs.readFileSync(configPath, "utf-8");
+      const config = JSON.parse(raw);
+      if (config.deepseekApiKey && typeof config.deepseekApiKey === "string") {
+        return config.deepseekApiKey.trim();
+      }
+    }
+  } catch (err) {
+    console.warn("[Main] Could not read userData config:", err.message);
+  }
+  return null;
+}
+
+/**
+ * Save the API key to userData config file and relaunch the app.
+ */
+function setupAuthIPC() {
+  ipcMain.handle("auth:saveKey", async (_event, apiKey) => {
+    if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length === 0) {
+      return { success: false, error: "Invalid API key" };
+    }
+    try {
+      const configPath = getConfigPath();
+      const configDir = path.dirname(configPath);
+      if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+      }
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({ deepseekApiKey: apiKey.trim() }, null, 2),
+        "utf-8"
+      );
+      console.log("[Main] API key saved to", configPath);
+      // Relaunch the app so the orchestrator initializes with the new key
+      app.relaunch();
+      app.exit(0);
+      return { success: true };
+    } catch (err) {
+      console.error("[Main] Failed to save API key:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 8.1 — IPC Input Validation
+// ═════════════════════════════════════════════════════════════════════════
+
+/**
+ * Validates that NO arguments were passed to a handler expecting zero args.
+ * @param {string} channel - IPC channel name (for error messages)
+ * @param {any[]} args - The rest/spread of arguments received
+ * @returns {string|null} Error message if invalid, null if valid
+ */
+function validateNoArgs(channel, ...args) {
+  const hasArgs = args.some(a => a !== undefined && a !== null);
+  if (hasArgs) {
+    console.warn(`[Security] ${channel} called with unexpected args:`, args);
+    return `${channel} does not accept arguments`;
+  }
+  return null;
+}
+
+/**
+ * Validates that a string argument is non-empty.
+ * @param {string} name - Parameter name
+ * @param {any} value - The value to validate
+ * @returns {string|null} Error message if invalid, null if valid
+ */
+function validateString(name, value) {
+  if (value === undefined || value === null) return `${name} is required`;
+  if (typeof value !== "string") return `${name} must be a string`;
+  if (value.trim().length === 0) return `${name} cannot be empty`;
+  return null;
+}
+
+/**
+ * Validates a file path argument for safety (path traversal check).
+ * @param {string} filePath - The path to validate
+ * @param {object} [options]
+ * @param {boolean} [options.allowOutsideProject] - Allow paths outside project
+ * @returns {string|null} Error message if invalid, null if valid
+ */
+function validatePath(filePath, options = {}) {
+  const err = validateString("filePath", filePath);
+  if (err) return err;
+  // Path traversal guard
+  const resolved = path.resolve(filePath);
+  if (resolved.includes("..") && filePath.includes("..")) {
+    return "Path traversal detected";
+  }
+  if (!options.allowOutsideProject && currentProjectPath) {
+    if (!resolved.startsWith(path.resolve(currentProjectPath))) {
+      return `Path is outside the current project: ${currentProjectPath}`;
+    }
+  }
+  return null;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// 8.3 — Rate Limiter (Token Bucket)
+// ═════════════════════════════════════════════════════════════════════════
+
+const _rateLimitBuckets = new Map();
+
+/**
+ * Checks if a call to a given channel is allowed (rate-limited).
+ * Simple token bucket: 1 token per 500ms per channel.
+ * @param {string} channel - IPC channel name
+ * @returns {boolean} true if allowed, false if rate-limited
+ */
+function checkRateLimit(channel) {
+  const now = Date.now();
+  const minInterval = 500; // ms
+  const lastCall = _rateLimitBuckets.get(channel) || 0;
+  if (now - lastCall < minInterval) {
+    console.warn(`[Security] Rate-limited ${channel} — ${minInterval}ms minimum interval`);
+    return false;
+  }
+  _rateLimitBuckets.set(channel, now);
+  return true;
+}
+
+// ─── Full IPC Handlers (orchestrator-dependent) ────────────────────────────
+
+function setupIPC() {
+  // ── Agent Control ──────────────────────────────────────────────────────
+
+  ipcMain.handle("agent:send", async (_event, userInput) => {
+    const inputErr = validateString("userInput", userInput);
+    if (inputErr) return { success: false, error: inputErr };
+    const response = await orchestrator.agentLoop(userInput);
+    return response;
+  });
+
+  ipcMain.handle("agent:status", () => {
+    return orchestrator.getStatus();
+  });
+
+  ipcMain.handle("agent:clear", (_event) => {
+    orchestrator.clearConversation();
+    return { success: true };
+  });
+
+  // ── 🛑 Stop/Abort agent (rate-limited) ─────────────────────────────────
+  ipcMain.handle("agent:stop", (_event) => {
+    process.stderr.write("[main:540] agent:stop IPC handler invoked\n");
+    if (!checkRateLimit("agent:stop")) {
+      return { success: false, error: "Too many requests. Please wait." };
+    }
+    if (!orchestrator || !orchestrator.abortAgent) {
+      process.stderr.write("[main] ERROR: orchestrator not ready for stop\n");
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    orchestrator.abortAgent();
+    return { success: true };
+  });
+
+  // ── ❓ Follow-Up Question ─────────────────────────────────────────────
+  ipcMain.handle("agent:answer_followup", async (_event, answer) => {
+    if (!orchestrator || !orchestrator.answerFollowupQuestion) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    return await orchestrator.answerFollowupQuestion(answer);
+  });
+
+  // ── ✅ Mode Suggestion: Accept ───────────────────────────────────────
+  ipcMain.handle("agent:accept_mode_suggestion", async () => {
+    if (!orchestrator || !orchestrator.acceptModeSuggestion) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    return await orchestrator.acceptModeSuggestion();
+  });
+
+  // ── ❌ Mode Suggestion: Deny ─────────────────────────────────────────
+  ipcMain.handle("agent:deny_mode_suggestion", async () => {
+    if (!orchestrator || !orchestrator.denyModeSuggestion) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    return await orchestrator.denyModeSuggestion();
+  });
+
+  // ── 🧹 Amnesia (rate-limited) ──────────────────────────────────────────
+  ipcMain.handle("chat:clear_context", (_event) => {
+    if (!checkRateLimit("chat:clear_context")) {
+      return { success: false, error: "Too many requests. Please wait." };
+    }
+    if (!orchestrator || !orchestrator.clearMemory) {
+      return { success: false, error: "Orchestrator not ready or clearMemory unavailable" };
+    }
+    orchestrator.clearMemory();
+    return { success: true };
+  });
+
+  // ── Skills ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle("skills:list", () => {
+    return orchestrator.getSkills();
+  });
+
+  ipcMain.handle("skills:reload", async () => {
+    const count = await orchestrator.reloadAllSkills();
+    return { count, skills: orchestrator.getSkills() };
+  });
+
+  // ── Session / State ────────────────────────────────────────────────────
+
+  ipcMain.handle("session:status", () => {
+    return orchestrator.getStatus();
+  });
+
+  ipcMain.handle("session:plan", (_event, content) => {
+    const contentErr = validateString("content", content);
+    if (contentErr) return { success: false, error: contentErr };
+    orchestrator.updatePlan(content);
+    return { success: true };
+  });
+
+  // ── Mode Switching ─────────────────────────────────────────────────────
+
+  /**
+   * Switches the orchestrator to the specified mode.
+   * Called when user clicks a mode button in the UI or auto-detection triggers.
+   */
+  ipcMain.handle("mode:switch", async (_event, modeSlug) => {
+    const slugErr = validateString("modeSlug", modeSlug);
+    if (slugErr) return { success: false, error: slugErr };
+    if (!orchestrator || !orchestrator.switchMode) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    return await orchestrator.switchMode(modeSlug, "manual");
+  });
+
+  // ── Model Override ─────────────────────────────────────────────────────
+
+  /**
+   * Override the active model tier manually.
+   * Accepts "cheap" (Flash), "reasoner" (Pro), "gemini" (Gemini Flash),
+   * or "auto" (clear override).
+   */
+  ipcMain.handle("model:setModel", async (_event, tier) => {
+    const tierErr = validateString("tier", tier);
+    if (tierErr) return { success: false, error: tierErr };
+    if (!["cheap", "reasoner", "auto", "gemini", "gemini-flash", "gemini-pro"].includes(tier)) {
+      return { success: false, error: `Invalid tier: ${tier}. Use "cheap", "reasoner", "gemini", "gemini-flash", "gemini-pro", or "auto"` };
+    }
+    if (!orchestrator || !orchestrator.overrideModel) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    return orchestrator.overrideModel(tier);
+  });
+
+  /**
+   * Get the available model names from the LLM client.
+   * Returns the cheap, reasoner, default and gemini model names.
+   */
+  ipcMain.handle("model:getAvailable", () => {
+    if (!orchestrator || !orchestrator.llm) {
+      return { cheap: "deepseek-chat", reasoner: "deepseek-reasoner", default: "deepseek-chat" };
+    }
+    return orchestrator.llm.getAvailableModels();
+  });
+
+  // ── Config ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle("config:get", () => {
+    return orchestrator.getConfig();
+  });
+
+  // ── Git Integration ───────────────────────────────────────────────────
+
+  /**
+   * Get Git status — modified, staged, untracked files.
+   */
+  ipcMain.handle("git:status", () => {
+    try {
+      const cwd = process.cwd();
+      // Check if it's a git repo
+      try {
+        execSync("git rev-parse --git-dir", { cwd, stdio: "pipe" });
+      } catch {
+        return { success: false, error: "Not a git repository", isRepo: false };
+      }
+
+      // Git status --porcelain
+      const statusOut = execSync("git status --porcelain", { cwd, encoding: "utf-8", stdio: "pipe" });
+      // Git diff --stat for a summary
+      const diffStatOut = execSync("git diff --stat", { cwd, encoding: "utf-8", stdio: "pipe" });
+
+      const files = [];
+      const lines = statusOut.trim().split("\n").filter(Boolean);
+      for (const line of lines) {
+        const xy = line.substring(0, 2);
+        const filePath = line.substring(3).trim();
+        let status = "modified";
+        if (xy.includes("?")) status = "untracked";
+        else if (xy.includes("A")) status = "added";
+        else if (xy.includes("D")) status = "deleted";
+        else if (xy.includes("R")) status = "renamed";
+        else if (xy.includes("C")) status = "copied";
+        else if (xy.includes("M")) status = "modified";
+        files.push({ filePath, status, raw: xy.trim() });
+      }
+
+      // Get current branch
+      let branch = "unknown";
+      try {
+        branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd, encoding: "utf-8", stdio: "pipe" }).trim();
+      } catch {}
+
+      return {
+        success: true,
+        isRepo: true,
+        branch,
+        files,
+        diffStat: diffStatOut.trim(),
+      };
+    } catch (err) {
+      return { success: false, error: err.message, isRepo: false };
+    }
+  });
+
+  /**
+   * Get Git diff for a specific file.
+   */
+  ipcMain.handle("git:diff", (_event, filePath) => {
+    try {
+      const cwd = process.cwd();
+      const diffOut = execSync(`git diff "${filePath}"`, { cwd, encoding: "utf-8", stdio: "pipe" });
+      return { success: true, diff: diffOut };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Auto-Commit: reads git diff, asks DeepSeek for a commit message, commits.
+   */
+  ipcMain.handle("git:autoCommit", async () => {
+    try {
+      const cwd = process.cwd();
+
+      // 1. Get the full diff
+      let diffText;
+      try {
+        diffText = execSync("git diff", { cwd, encoding: "utf-8", stdio: "pipe" });
+      } catch {
+        return { success: false, error: "Failed to read git diff" };
+      }
+
+      if (!diffText.trim()) {
+        return { success: false, error: "No changes to commit" };
+      }
+
+      // 2. Ask LLM (via orchestrator) for a commit message
+      let commitMessage = "Auto-commit";
+      try {
+        if (orchestrator.llm && orchestrator.llm.isReady()) {
+          const systemMsg = "You are a Git expert. Generate a concise, single-line commit message (max 72 chars) for the following diff. Respond with ONLY the commit message, no quotes, no explanation.";
+          const completion = await orchestrator.llm.complete([
+            { role: "system", content: systemMsg },
+            { role: "user", content: `Generate a commit message for this diff:\n\n${diffText.slice(0, 6000)}` },
+          ], { max_tokens: 80, temperature: 0.3 });
+          const generated = completion?.content?.trim();
+          if (generated) {
+            // Clean up — remove quotes if present
+            commitMessage = generated.replace(/^["']|["']$/g, "").trim();
+            if (commitMessage.length > 100) commitMessage = commitMessage.substring(0, 100);
+          }
+        }
+      } catch (err) {
+        console.warn("[Main] Failed to generate commit message via AI, using fallback:", err.message);
+      }
+
+      // 3. Execute git commit
+      try {
+        // Stage all changes first
+        execSync("git add -A", { cwd, stdio: "pipe" });
+        // Commit with the generated message
+        execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, { cwd, stdio: "pipe" });
+        console.log(`[Main] Auto-commit: "${commitMessage}"`);
+        return { success: true, message: commitMessage };
+      } catch (err) {
+        return { success: false, error: `Commit failed: ${err.message}` };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Skills: Direct Invocation ─────────────────────────────────────────
+
+  /**
+   * Run the repo_mapper skill directly via IPC (for @codebase mentions).
+   */
+  ipcMain.handle("skill:runRepoMapper", async (_event, directory) => {
+    try {
+      const { default: repoMapper } = await import("../skills/repo_mapper.js");
+      const result = await repoMapper.handler({
+        action: "map",
+        directory: directory || ".",
+      });
+      return result;
+    } catch (err) {
+      return { success: false, error: `repo_mapper error: ${err.message}` };
+    }
+  });
+
+  /**
+   * Run the code_mapper skill directly via IPC (for @codebase mentions / surgical reading).
+   * Accepts { action, path, paths, directory, options } — see skills/code_mapper.js
+   */
+  ipcMain.handle("skill:runCodeMapper", async (_event, params) => {
+    try {
+      const { default: codeMapper } = await import("../skills/code_mapper.js");
+      const result = await codeMapper.handler(params || {});
+      return result;
+    } catch (err) {
+      return { success: false, error: `code_mapper error: ${err.message}` };
+    }
+  });
+
+  /**
+   * Run the apply_diff skill directly via IPC.
+   * Accepts { action:"patch", path, search, replace, start_line }
+   */
+  ipcMain.handle("skill:runApplyDiff", async (_event, params) => {
+    try {
+      const { default: applyDiff } = await import("../skills/apply_diff.js");
+      const result = await applyDiff.handler(params || {});
+      return result;
+    } catch (err) {
+      return { success: false, error: `apply_diff error: ${err.message}` };
+    }
+  });
+
+  // ── Auto-Approve Settings ─────────────────────────────────────────────
+
+  ipcMain.handle("config:setAutoApprove", (_event, settings) => {
+    if (settings && typeof settings === "object") {
+      // Read new toolbar-style auto-approve object (6 permissions)
+      if (settings.autoApprove && typeof settings.autoApprove === "object") {
+        const aa = settings.autoApprove;
+        // Map toolbar "write" → backend edits, "execute" → backend terminal
+        if (typeof aa.write === "boolean") {
+          _autoApproveEdits = aa.write;
+        }
+        if (typeof aa.execute === "boolean") {
+          _autoApproveTerminal = aa.execute;
+        }
+      } else {
+        // Legacy fallback: read old individual keys
+        if (typeof settings.autoApproveEdits === "boolean") {
+          _autoApproveEdits = settings.autoApproveEdits;
+        }
+        if (typeof settings.autoApproveTerminal === "boolean") {
+          _autoApproveTerminal = settings.autoApproveTerminal;
+        }
+      }
+    }
+    const aa = settings?.autoApprove || {};
+    console.log(`[Main] Auto-approve updated: read=${aa.read ?? true}, write=${aa.write ?? false}, mode=${aa.mode ?? true}, execute=${aa.execute ?? false}, question=${aa.question ?? true}, subtasks=${aa.subtasks ?? true}`);
+    return { success: true, autoApproveEdits: _autoApproveEdits, autoApproveTerminal: _autoApproveTerminal };
+  });
+
+  // ── Dialog ─────────────────────────────────────────────────────────────
+
+  ipcMain.handle("dialog:openFile", async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ["openFile", "openDirectory"],
+    });
+    return result;
+  });
+
+  // ── Workflows ──────────────────────────────────────────────────────────
+
+  ipcMain.handle("workflows:list", () => {
+    return orchestrator.getWorkflows();
+  });
+
+  ipcMain.handle("workflows:help", () => {
+    return orchestrator.getWorkflowHelp();
+  });
+
+  ipcMain.handle("workflows:active", () => {
+    return orchestrator.getActiveWorkflow();
+  });
+
+  // ── Panel Toggle (View Menu) ───────────────────────────────────────────
+
+  ipcMain.handle("panel:toggle", (_event, panelId) => {
+    if (panelState[panelId] !== undefined) {
+      panelState[panelId] = !panelState[panelId];
+    }
+    return panelState;
+  });
+
+  // ── Diff Review (Misión 2) ────────────────────────────────────────────
+
+  /**
+   * Accept a pending diff: write the new content to disk.
+   */
+  ipcMain.handle("file:acceptDiff", (_event, filePath, content) => {
+    if (!filePath || !content) {
+      return { success: false, error: "Missing filePath or content" };
+    }
+    try {
+      const absPath = path.resolve(process.cwd(), filePath);
+      const dir = path.dirname(absPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(absPath, content, "utf-8");
+      _pendingDiffs.delete(filePath);
+      console.log(`[Main] Diff accepted: ${filePath}`);
+      return { success: true, path: filePath };
+    } catch (err) {
+      console.error(`[Main] Error accepting diff: ${filePath}`, err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Reject a pending diff: restore the original content.
+   */
+  ipcMain.handle("file:rejectDiff", (_event, filePath) => {
+    if (!filePath) {
+      return { success: false, error: "Missing filePath" };
+    }
+    const pending = _pendingDiffs.get(filePath);
+    if (!pending) {
+      return { success: false, error: `No pending diff for ${filePath}` };
+    }
+    try {
+      const absPath = path.resolve(process.cwd(), filePath);
+      // Restore original content (overwrite what file_manager may have written)
+      fs.writeFileSync(absPath, pending.originalContent, "utf-8");
+      _pendingDiffs.delete(filePath);
+      console.log(`[Main] Diff rejected — original restored: ${filePath}`);
+      return { success: true, path: filePath, restored: true };
+    } catch (err) {
+      console.error(`[Main] Error rejecting diff: ${filePath}`, err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── Project Management ─────────────────────────────────────────────────
+
+  /**
+   * Create a new project folder using native Save As dialog.
+   *
+   * En Windows, showSaveDialog muestra el diálogo "Guardar como" estándar
+   * que combina: navegador de carpetas + campo para escribir el nombre.
+   *
+   * El usuario:
+   *   1. Navega a donde quiere crear el proyecto
+   *   2. Escribe el nombre en el campo de nombre de archivo
+   *   3. Le da clic a "Create Project"
+   *   4. Se crea la carpeta con ese nombre en esa ubicación
+   *
+   * Un solo diálogo híbrido — más intuitivo que dos pasos separados.
+   */
+  ipcMain.handle("project:new", async (_event, options = {}) => {
+    try {
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: "Create new project — navigate to location, type project name",
+        defaultPath: path.join(os.homedir(), "my-project"),
+        buttonLabel: "Create Project",
+        properties: [],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      let projectPath = result.filePath;
+
+      // ── Strip file extension ───────────────────────────────────────────
+      // showSaveDialog podría agregar extensión si el usuario escribió una.
+      // Si la ruta sin extensión existe (el padre), usamos esa.
+      if (!fs.existsSync(projectPath)) {
+        const ext = path.extname(projectPath);
+        if (ext) {
+          const withoutExt = projectPath.slice(0, -ext.length);
+          if (fs.existsSync(path.dirname(withoutExt))) {
+            projectPath = withoutExt;
+          }
+        }
+      }
+
+      const projectName = path.basename(projectPath);
+
+      // ── Create directory if it doesn't exist ──────────────────────────
+      if (!fs.existsSync(projectPath)) {
+        fs.mkdirSync(projectPath, { recursive: true });
+      }
+
+      // ── Init .lv-zero folder inside project ───────────────────────────
+      const lvZeroDir = path.join(projectPath, ".lv-zero");
+      if (!fs.existsSync(lvZeroDir)) {
+        fs.mkdirSync(lvZeroDir, { recursive: true });
+        fs.writeFileSync(path.join(lvZeroDir, ".gitkeep"), "");
+      }
+
+      // ── Init mapa-del-proyecto folder inside project ──────────────────
+      // This folder will hold the auto-generated project map (graphify output).
+      // graphify builds its own graphify-out/ dir, but mapa-del-proyecto/
+      // is used for persistent metadata and the latest snapshot reference.
+      const mapDir = path.join(projectPath, "mapa-del-proyecto");
+      if (!fs.existsSync(mapDir)) {
+        fs.mkdirSync(mapDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(mapDir, "README.md"),
+          `# 🗺️ Mapa del Proyecto: ${projectName}\n\n` +
+          `Generado automáticamente por lv-zero.\n\n` +
+          `Este directorio contiene metadatos del proyecto y enlaces simbólicos\n` +
+          `a la salida de graphify (graphify-out/).\n\n` +
+          `## Contenido\n\n` +
+          `- \`graph.json\` → Enlace al último grafo de proyecto generado\n` +
+          `- \`structure.md\` → Resumen de estructura del proyecto\n` +
+          `- \`callflow.html\` → Diagrama de flujo de llamadas\n` +
+          `\n---\n*Creado: ${new Date().toISOString()}*\n`
+        );
+      }
+
+      addRecentProject(projectPath);
+      process.chdir(projectPath);
+      console.log(`[Main] Project created: ${projectPath}`);
+
+      // Sync orchestrator to the new project
+      if (orchestrator && orchestrator.setProjectPath) {
+        await orchestrator.setProjectPath(projectPath);
+      }
+
+      // Sync file bridge (explorer panel) to the new project
+      if (fileBridge && fileBridge.setAllowedBase) {
+        fileBridge.setAllowedBase(projectPath);
+      }
+
+      // Restart file watcher to watch the new project
+      if (fileBridge && fileBridge.stopFileWatcher && fileBridge.startFileWatcher && mainWindow && !mainWindow.isDestroyed()) {
+        fileBridge.stopFileWatcher();
+        fileBridge.startFileWatcher(mainWindow, projectPath);
+      }
+
+      // Notify renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("project:changed", {
+          name: projectName,
+          path: projectPath,
+          action: "created",
+        });
+      }
+
+      return { success: true, name: projectName, path: projectPath };
+    } catch (err) {
+      console.error("[Main] Error creating project:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Open an existing project folder.
+   */
+  ipcMain.handle("project:open", async (_event, { path: projectPath } = {}) => {
+    try {
+      let targetPath = projectPath;
+
+      if (!targetPath) {
+        // Show folder picker dialog
+        const result = await dialog.showOpenDialog(mainWindow, {
+          properties: ["openDirectory"],
+          title: "Open Project",
+        });
+        if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+          return { success: false, canceled: true };
+        }
+        targetPath = result.filePaths[0];
+      }
+
+      if (!fs.existsSync(targetPath)) {
+        return { success: false, error: `Directory not found: ${targetPath}` };
+      }
+
+      const projectName = path.basename(targetPath);
+      addRecentProject(targetPath);
+      process.chdir(targetPath);
+      console.log(`[Main] Project opened: ${targetPath}`);
+
+      // Sync orchestrator to the opened project
+      if (orchestrator && orchestrator.setProjectPath) {
+        await orchestrator.setProjectPath(targetPath);
+      }
+
+      // Sync file bridge (explorer panel) to the opened project
+      if (fileBridge && fileBridge.setAllowedBase) {
+        fileBridge.setAllowedBase(targetPath);
+      }
+
+      // Restart file watcher to watch the opened project
+      if (fileBridge && fileBridge.stopFileWatcher && fileBridge.startFileWatcher && mainWindow && !mainWindow.isDestroyed()) {
+        fileBridge.stopFileWatcher();
+        fileBridge.startFileWatcher(mainWindow, targetPath);
+      }
+
+      // Notify renderer
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("project:changed", {
+          name: projectName,
+          path: targetPath,
+          action: "opened",
+        });
+      }
+
+      return { success: true, name: projectName, path: targetPath };
+    } catch (err) {
+      console.error("[Main] Error opening project:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Close the current project.
+   */
+  ipcMain.handle("project:close", async () => {
+    try {
+      if (currentProjectPath) {
+        console.log(`[Main] Closing project: ${currentProjectPath}`);
+
+        // Reset orchestrator to lv-zero root
+        if (orchestrator && orchestrator.setProjectPath) {
+          await orchestrator.setProjectPath(null);
+        }
+
+        // Reset file bridge (explorer panel) to lv-zero root
+        if (fileBridge && fileBridge.setAllowedBase) {
+          fileBridge.setAllowedBase(path.resolve(__dirname, ".."));
+        }
+
+        // Restart file watcher to watch lv-zero root
+        if (fileBridge && fileBridge.stopFileWatcher && mainWindow && !mainWindow.isDestroyed()) {
+          fileBridge.stopFileWatcher();
+          fileBridge.startFileWatcher(mainWindow, path.resolve(__dirname, ".."));
+        }
+
+        removeRecentProject(currentProjectPath);
+        // Reset CWD to app root
+        process.chdir(path.resolve(__dirname, ".."));
+        currentProjectPath = null;
+      }
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("project:changed", {
+          name: null,
+          path: null,
+          action: "closed",
+        });
+      }
+
+      return { success: true };
+    } catch (err) {
+      console.error("[Main] Error closing project:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Duplicate the current project.
+   */
+  ipcMain.handle("project:duplicate", async () => {
+    try {
+      if (!currentProjectPath) {
+        return { success: false, error: "No project is currently open" };
+      }
+
+      const sourceName = path.basename(currentProjectPath);
+      const parentDir = path.dirname(currentProjectPath);
+      const newName = `Copy of ${sourceName}`;
+
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: "Duplicate Project — Choose destination",
+        defaultPath: path.join(parentDir, newName),
+        properties: ["createDirectory"],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      const destPath = result.filePath;
+
+      if (fs.existsSync(destPath)) {
+        return { success: false, error: `Destination already exists: ${destPath}` };
+      }
+
+      // Recursive copy
+      fs.cpSync(currentProjectPath, destPath, { recursive: true });
+      console.log(`[Main] Project duplicated: ${currentProjectPath} → ${destPath}`);
+
+      return { success: true, name: path.basename(destPath), path: destPath };
+    } catch (err) {
+      console.error("[Main] Error duplicating project:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Export the current project as a ZIP file.
+   */
+  ipcMain.handle("project:export", async () => {
+    try {
+      if (!currentProjectPath) {
+        return { success: false, error: "No project is currently open" };
+      }
+
+      const projectName = path.basename(currentProjectPath);
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: "Export Project as ZIP",
+        defaultPath: `${projectName}.zip`,
+        filters: [{ name: "ZIP Archive", extensions: ["zip"] }],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+
+      const outputPath = result.filePath;
+
+      // Create ZIP using Node.js built-in zlib
+      const { createWriteStream } = await import("fs");
+      const { createGzip } = await import("zlib");
+      const { pipeline } = await import("stream/promises");
+      const { createReadStream } = await import("fs");
+
+      // Use archiver-style approach: walk directory, add each file
+      const { default: archiver } = await import("archiver");
+
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      const output = createWriteStream(outputPath);
+
+      archive.pipe(output);
+      archive.directory(currentProjectPath, path.basename(currentProjectPath));
+      await archive.finalize();
+
+      console.log(`[Main] Project exported: ${outputPath}`);
+      return { success: true, outputPath };
+    } catch (err) {
+      console.error("[Main] Error exporting project:", err.message);
+      // Fallback: simple ZIP without archiver if not available
+      try {
+        if (!currentProjectPath) return { success: false, error: "No project open" };
+        const projectName = path.basename(currentProjectPath);
+        const result2 = await dialog.showSaveDialog(mainWindow, {
+          title: "Export Project as ZIP",
+          defaultPath: `${projectName}.zip`,
+          filters: [{ name: "ZIP Archive", extensions: ["zip"] }],
+        });
+        if (result2.canceled || !result2.filePath) return { success: false, canceled: true };
+        // Fallback with simple tar.gz? No, let's just return error with instructions
+        return { success: false, error: `Export failed: ${err.message}. Install archiver: npm install archiver` };
+      } catch (_) {
+        return { success: false, error: err.message };
+      }
+    }
+  });
+
+  /**
+   * List recent projects.
+   */
+  ipcMain.handle("project:listRecent", () => {
+    const registry = loadProjectRegistry();
+    return { projects: registry.recentProjects || [] };
+  });
+
+  /**
+   * Get current project info.
+   */
+  ipcMain.handle("project:current", () => {
+    if (currentProjectPath) {
+      return {
+        isOpen: true,
+        name: path.basename(currentProjectPath),
+        path: currentProjectPath,
+      };
+    }
+    return { isOpen: false };
+  });
+
+  /**
+   * Get detailed project info including orchestrator state.
+   */
+  ipcMain.handle("project:info", () => {
+    if (orchestrator && orchestrator.getProjectInfo) {
+      return orchestrator.getProjectInfo();
+    }
+    // Fallback if orchestrator not ready
+    if (currentProjectPath) {
+      return {
+        isOpen: true,
+        name: path.basename(currentProjectPath),
+        path: currentProjectPath,
+        planFile: path.resolve(currentProjectPath, "PLAN.md"),
+      };
+    }
+    return { isOpen: false, name: null, path: null, planFile: null };
+  });
+
+  // ── 🚨 Crash Recovery ────────────────────────────────────────────────────
+
+  /**
+   * Returns the pending crash recovery state, if any.
+   * Called after the UI receives a 'crash_detected' event to get full details.
+   */
+  ipcMain.handle("crash:getState", () => {
+    if (!orchestrator || !orchestrator.getCrashRecoveryState) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    const state = orchestrator.getCrashRecoveryState();
+    return { success: true, state };
+  });
+
+  /**
+   * Recovers from a detected crash — restores the session context.
+   * Delegates to orchestrator.recoverFromCrash() which restores the mode,
+   * injects a crash recovery system message, and clears the stale checkpoint.
+   */
+  ipcMain.handle("crash:recover", async () => {
+    if (!orchestrator || !orchestrator.recoverFromCrash) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    try {
+      const result = orchestrator.recoverFromCrash();
+      if (result.restored) {
+        console.log(`[Crash] Recovery complete — mode: ${result.mode}`);
+        return { success: true, ...result };
+      }
+      return { success: false, error: "No crash state to recover" };
+    } catch (err) {
+      console.error("[Crash] Recovery failed:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  /**
+   * Dismisses a crash detection without recovery.
+   * Delegates to orchestrator.clearCrashState() which clears the stale
+   * RooState checkpoint and resets the pending recovery flag.
+   */
+  ipcMain.handle("crash:dismiss", async () => {
+    if (!orchestrator || !orchestrator.clearCrashState) {
+      return { success: false, error: "Orchestrator not ready" };
+    }
+    try {
+      orchestrator.clearCrashState();
+      console.log("[Crash] Recovery dismissed — state cleared");
+      return { success: true };
+    } catch (err) {
+      console.error("[Crash] Dismiss failed:", err.message);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // ── MCP Config Manager ──────────────────────────────────────────────────
+
+  ipcMain.handle("mcp:status", () => {
+    if (!orchestrator || !orchestrator._mcpConfigManager) {
+      return { servers: [] };
+    }
+    return orchestrator._mcpConfigManager.getStatus();
+  });
+
+  ipcMain.handle("mcp:connect", async (_event, serverName) => {
+    const nameErr = validateString("serverName", serverName);
+    if (nameErr) return { success: false, error: nameErr };
+    if (!orchestrator || !orchestrator._mcpConfigManager) {
+      return { success: false, error: "MCP Config Manager no disponible" };
+    }
+    return await orchestrator._mcpConfigManager.connectServer(serverName);
+  });
+
+  ipcMain.handle("mcp:disconnect", async (_event, serverName) => {
+    const nameErr = validateString("serverName", serverName);
+    if (nameErr) return { success: false, error: nameErr };
+    if (!orchestrator || !orchestrator._mcpConfigManager) {
+      return { success: false, error: "MCP Config Manager no disponible" };
+    }
+    return await orchestrator._mcpConfigManager.disconnectServer(serverName);
+  });
+
+  ipcMain.handle("mcp:reconnect", async (_event, serverName) => {
+    const nameErr = validateString("serverName", serverName);
+    if (nameErr) return { success: false, error: nameErr };
+    if (!orchestrator || !orchestrator._mcpConfigManager) {
+      return { success: false, error: "MCP Config Manager no disponible" };
+    }
+    return await orchestrator._mcpConfigManager.reconnectServer(serverName);
+  });
+
+  ipcMain.handle("mcp:config", () => {
+    if (!orchestrator || !orchestrator._mcpConfigManager) {
+      return [];
+    }
+    return orchestrator._mcpConfigManager.readConfig();
+  });
+
+  ipcMain.handle("mcp:configSave", async (_event, config) => {
+    if (!orchestrator || !orchestrator._mcpConfigManager) {
+      return { success: false, error: "MCP Config Manager no disponible" };
+    }
+    return await orchestrator._mcpConfigManager.saveConfig(config);
+  });
+}
+
+// ─── Orchestrator Events → IPC Forwarding ──────────────────────────────────
+
+function connectOrchestratorEvents() {
+  orchestrator.on("log", (msg) => {
+    mainWindow?.webContents.send("orchestrator:log", msg);
+  });
+
+  orchestrator.on("warn", (msg) => {
+    mainWindow?.webContents.send("orchestrator:log", `⚠️ ${msg}`);
+  });
+
+  orchestrator.on("thought", (thought) => {
+    mainWindow?.webContents.send("orchestrator:thought", thought);
+  });
+
+  orchestrator.on("step", (data) => {
+    mainWindow?.webContents.send("orchestrator:step", data);
+  });
+
+  orchestrator.on("summary", (data) => {
+    mainWindow?.webContents.send("orchestrator:summary", data);
+  });
+
+  orchestrator.on("tool_call", (data) => {
+    mainWindow?.webContents.send("orchestrator:tool_call", data);
+
+    // ── Editor Reactivo: Auto-open files when agent writes to them ───────
+    // NOTE: orchestrator emits flat { name, args, status, toolIndex, totalTools }
+    //       NOT wrapped in { toolCall: { function: { name } } }
+    // Extends to ALL write skills: file_manager (diff review), apply_diff (patch),
+    // and write_to_file (direct write) — each auto-opens the file being modified.
+    const WRITE_TOOL_NAMES = new Set(["file_manager", "apply_diff", "write_to_file"]);
+    if (WRITE_TOOL_NAMES.has(data?.name) && data?.args) {
+      const args = data.args;
+      const filePath = args.path || args.filePath || args.target || "";
+      if (!filePath) return;
+
+      const codeFiles = [".js", ".ts", ".jsx", ".tsx", ".json", ".html", ".css", ".md", ".py", ".sql", ".yaml", ".yml", ".cjs", ".mjs"];
+      const ext = path.extname(filePath).toLowerCase();
+      if (!codeFiles.includes(ext)) return;
+
+      if (data.name === "file_manager") {
+        const action = args.action || args.mode || "";
+
+        // ── Control de Cambios (Misión 2): Diff Review for edits ───────────
+        // When agent modifies an existing code file → show diff before writing
+        // Si autoApproveEdits está activo, escribe directamente y salta el diff
+        if (["write", "edit", "overwrite", "patch"].includes(action) && filePath) {
+          const absPath = path.resolve(process.cwd(), filePath);
+          let originalContent = null;
+          try {
+            if (fs.existsSync(absPath)) {
+              originalContent = fs.readFileSync(absPath, "utf-8");
+            }
+          } catch (err) {
+            console.warn(`[Main] Could not read original for diff: ${filePath}`, err.message);
+          }
+
+          if (originalContent !== null) {
+            const newContent = args.content || "";
+
+            if (_autoApproveEdits) {
+              // ── Auto-Approve Mode: write directly, skip diff review ───
+              try {
+                const dir = path.dirname(absPath);
+                if (!fs.existsSync(dir)) {
+                  fs.mkdirSync(dir, { recursive: true });
+                }
+                fs.writeFileSync(absPath, newContent, "utf-8");
+                console.log(`[Main] Auto-approved write: ${filePath}`);
+                // Signal frontend to reload the tab
+                setTimeout(() => {
+                  mainWindow?.webContents.send("editor:openFile", {
+                    filePath,
+                    action,
+                    toolCallId: data?.toolIndex,
+                    autoApproved: true,
+                  });
+                }, 300);
+              } catch (err) {
+                console.error(`[Main] Auto-approve write failed: ${filePath}`, err.message);
+              }
+            } else {
+              // Normal diff review flow
+              _pendingDiffs.set(filePath, { originalContent, newContent });
+
+              mainWindow?.webContents.send("editor:diffReview", {
+                filePath,
+                originalContent,
+                newContent,
+              });
+
+              // Still auto-open the file for context (user can see the original)
+              setTimeout(() => {
+                mainWindow?.webContents.send("editor:openFile", {
+                  filePath,
+                  action,
+                  toolCallId: data?.toolIndex,
+                });
+              }, 300);
+            }
+          } else {
+            // New file → auto-open as before
+            setTimeout(() => {
+              mainWindow?.webContents.send("editor:openFile", {
+                filePath,
+                action,
+                toolCallId: data?.toolIndex,
+              });
+            }, 500);
+          }
+        } else if (["create"].includes(action) && filePath) {
+          // Pure "create" action for new files → auto-open
+          setTimeout(() => {
+            mainWindow?.webContents.send("editor:openFile", {
+              filePath,
+              action,
+              toolCallId: data?.toolIndex,
+            });
+          }, 500);
+        }
+      } else {
+        // ── apply_diff / write_to_file: auto-open without diff review ──
+        // These skills handle their own writing logic internally.
+        // We just open the file so the user can see changes in real-time.
+        setTimeout(() => {
+          mainWindow?.webContents.send("editor:openFile", {
+            filePath,
+            action: data.name,
+            toolCallId: data?.toolIndex,
+          });
+        }, 500);
+      }
+    }
+
+    // ── Terminal Reactiva: echo agent commands to the terminal ───────────
+    if (data?.name === "shell_executor" && data?.args?.command) {
+      const { command, cwd, shell } = data.args;
+      if (_autoApproveTerminal) {
+        // Auto-approve ON → echo directly
+        if (terminalBridge && terminalBridge.writeToPty) {
+          terminalBridge.writeToPty(`\r\n$ ${command}\r\n`);
+        }
+      } else {
+        // Auto-approve OFF → send confirmation request to renderer
+        mainWindow?.webContents.send("tool:requires_confirmation", {
+          type: "shell_executor",
+          command,
+          cwd: cwd || process.cwd(),
+          shell: shell || "default",
+          toolIndex: data?.toolIndex,
+        });
+        // Still echo to PTY (tool already executing), but add a visual flag
+        if (terminalBridge && terminalBridge.writeToPty) {
+          terminalBridge.writeToPty(`\r\n⚠️ [NEEDS APPROVAL] $ ${command}\r\n`);
+        }
+        // Log the blocked status
+        console.log(`[Main] Shell execution requires approval (autoApproveTerminal=OFF): ${command}`);
+      }
+    }
+  });
+
+  orchestrator.on("tool_result", (data) => {
+    mainWindow?.webContents.send("orchestrator:tool_result", data);
+
+    // ── Auto-Git Checkpoint: commit after file writes ──────────────────
+    if (data?.status === "success" && WRITE_SKILL_NAMES.has(data?.name)) {
+      if (_autoCommitTimer) clearTimeout(_autoCommitTimer);
+      _autoCommitTimer = setTimeout(async () => {
+        try {
+          const cwd = process.cwd();
+          // Verify this is a git repo before attempting git commands
+          try {
+            execSync("git rev-parse --git-dir", { cwd, stdio: "pipe" });
+          } catch {
+            return; // not a git repo, silently skip
+          }
+          // Check if there are any changes to commit
+          const diffCheck = execSync("git diff --stat", { cwd, encoding: "utf-8", stdio: "pipe" });
+          if (!diffCheck.trim()) return; // nothing to commit
+
+          console.log("[AutoGit] Changes detected, committing...");
+          // Re-use the autoCommit handler logic inline
+          let diffText;
+          try {
+            diffText = execSync("git diff", { cwd, encoding: "utf-8", stdio: "pipe" });
+          } catch { return; }
+
+          if (!diffText.trim()) return;
+
+          let commitMessage = "Auto-commit (checkpoint)";
+          try {
+            if (orchestrator && orchestrator.llm && orchestrator.llm.isReady()) {
+              const systemMsg = "You are a Git expert. Generate a concise, single-line commit message (max 72 chars) for the following diff. Respond with ONLY the commit message, no quotes, no explanation.";
+              const completion = await orchestrator.llm.complete([
+                { role: "system", content: systemMsg },
+                { role: "user", content: `Generate a commit message for this diff:\n\n${diffText.slice(0, 6000)}` },
+              ], { max_tokens: 80, temperature: 0.3 });
+              const generated = completion?.content?.trim();
+              if (generated) {
+                commitMessage = generated.replace(/^["']|["']$/g, "").trim();
+                if (commitMessage.length > 100) commitMessage = commitMessage.substring(0, 100);
+              }
+            }
+          } catch { /* use fallback message */ }
+
+          execSync("git add -A", { cwd, stdio: "pipe" });
+          execSync(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`, { cwd, stdio: "pipe" });
+          console.log(`[AutoGit] ✅ Checkpoint: "${commitMessage}"`);
+          mainWindow?.webContents.send("orchestrator:log", {
+            type: "info",
+            message: `📦 Auto-checkpoint: ${commitMessage}`,
+          });
+        } catch (err) {
+          console.warn(`[AutoGit] ⚠️ Commit skipped: ${err.message}`);
+        }
+      }, 3000); // 3-second debounce — batches multiple writes into one commit
+    }
+  });
+
+  orchestrator.on("response", (content) => {
+    mainWindow?.webContents.send("orchestrator:response", content);
+  });
+
+  orchestrator.on("error", (data) => {
+    mainWindow?.webContents.send("orchestrator:error", data);
+  });
+
+  orchestrator.on("skills_loaded", (data) => {
+    mainWindow?.webContents.send("orchestrator:skills_loaded", data);
+  });
+
+  orchestrator.on("ready", (data) => {
+    mainWindow?.webContents.send("orchestrator:ready", data);
+  });
+
+  // ── Mode Switching ──────────────────────────────────────────────────────
+  orchestrator.on("mode_changed", (data) => {
+    mainWindow?.webContents.send("orchestrator:mode_changed", data);
+  });
+
+  // ── 🔌 MCP Status Changed Events ──────────────────────────────────────
+
+  orchestrator.on("mcp_status_changed", (status) => {
+    mainWindow?.webContents.send("mcp:status_changed", status);
+  });
+
+  orchestrator.on("mode_suggestion", (data) => {
+    mainWindow?.webContents.send("orchestrator:mode_suggestion", data);
+  });
+
+  orchestrator.on("workflow_start", (data) => {
+    mainWindow?.webContents.send("orchestrator:workflow_start", data);
+  });
+
+  orchestrator.on("workflow_suggest", (data) => {
+    mainWindow?.webContents.send("orchestrator:workflow_suggest", data);
+  });
+
+  orchestrator.on("workflow_step", (data) => {
+    mainWindow?.webContents.send("orchestrator:workflow_step", data);
+  });
+
+  orchestrator.on("workflow_end", (data) => {
+    mainWindow?.webContents.send("orchestrator:workflow_end", data);
+  });
+
+  // ── Real-Time Reasoning (DeepSeek streaming) ──────────────────────────
+  orchestrator.on("reasoning", (data) => {
+    mainWindow?.webContents.send("orchestrator:reasoning", data);
+  });
+
+  // ── Content Streaming (token-by-token like ChatGPT) ───────────────────
+  orchestrator.on("content_chunk", (data) => {
+    mainWindow?.webContents.send("orchestrator:content_chunk", data);
+  });
+
+  orchestrator.on("project_changed", (data) => {
+    mainWindow?.webContents.send("orchestrator:project_changed", data);
+  });
+
+  // ── 🚨 Crash Recovery ────────────────────────────────────────────────────
+  orchestrator.on("crash_detected", (data) => {
+    mainWindow?.webContents.send("orchestrator:crash_detected", data);
+  });
+
+  // ── Tool Execution Progress ──────────────────────────────────────────────
+  orchestrator.on("tool_progress", (data) => {
+    mainWindow?.webContents.send("orchestrator:tool_progress", data);
+  });
+
+  // ── Follow-Up Question (ask_question) ────────────────────────────────────
+  orchestrator.on("ask_question", (data) => {
+    mainWindow?.webContents.send("orchestrator:ask_question", data);
+  });
+
+  // ── Task Completion Banner ──────────────────────────────────────────────
+  orchestrator.on("task_complete", (data) => {
+    mainWindow?.webContents.send("orchestrator:task_complete", data);
+  });
+
+  // ── 🔁 REPLAY MISSED "ready" EVENT ──────────────────────────────────────
+  // orchestrator.init() emits "ready" during startup, but at that point the
+  // window doesn't exist yet (createWindow() hasn't been called) and event
+  // forwarding (this function) hasn't been set up. The IPC "ready" event is
+  // therefore lost — the renderer never receives it.
+  //
+  // This fallback replays the event if the orchestrator is already initialized
+  // when connectOrchestratorEvents() is finally called (after window creation).
+  if (orchestrator && orchestrator.initialized) {
+    const skills = orchestrator.skills || [];
+    const status = orchestrator.getStatus();
+    const readyData = {
+      skills: skills,
+      sessionId: status?.session?.sessionId || "active",
+      skillsCount: skills.length,
+      model: status?.model || "unknown",
+      cachePrefixHash: orchestrator.cacheLoop?.prefix?.hash || "unknown",
+    };
+    console.log("[Main] Replaying missed 'ready' event to window");
+    mainWindow?.webContents.send("orchestrator:ready", readyData);
+  }
+}
+
+// ─── Shell Output → Terminal Forwarding (Terminal Reactiva) ────────────────
+
+function connectShellOutput() {
+  // Listen for shell:output events emitted by shell_executor's spawn mode
+  process.on("shell:output", ({ chunk, stream, command }) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("terminal:data", chunk);
+    }
+  });
+
+  // ── Auto-Healing (Fase 4): forward command errors to renderer ──────────
+  process.on("shell:error", ({ command, exitCode, stderr, stdout }) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("terminal:commandError", {
+        command,
+        exitCode,
+        stderr: stderr || null,
+        stdout: stdout || null,
+      });
+    }
+  });
+
+  // ── Shell Selector: sync __LV_ACTIVE_SHELL env var for shell_executor ──
+  process.on("shell:changed", (shellType) => {
+    process.env.__LV_ACTIVE_SHELL = shellType;
+  });
+}
+
+// ─── CSP ────────────────────────────────────────────────────────────────────
+
+function setupCSP() {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    if (details.url.startsWith("file://")) {
+      return callback({ responseHeaders: details.responseHeaders });
+    }
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        "Content-Security-Policy": [
+          "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; frame-src http://localhost:* http://127.0.0.1:*;",
+        ],
+      },
+    });
+  });
+}
+
+// ─── Auth — Fallback to .env for Dev Mode ──────────────────────────────────
+
+/**
+ * Read DEEPSEEK_API_KEY from .env file (development fallback).
+ * In packaged builds, .env is excluded — this only works in dev mode.
+ */
+function readDotEnvKey() {
+  const envPath = path.resolve(__dirname, "..", ".env");
+  try {
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const match = content.match(/^DEEPSEEK_API_KEY\s*=\s*(.+)$/m);
+      if (match) {
+        return match[1].trim().replace(/^["']|["']$/g, "");
+      }
+    }
+  } catch (err) {
+    console.warn("[Main] Could not read .env file:", err.message);
+  }
+  return null;
+}
+
+// ─── App Lifecycle ─────────────────────────────────────────────────────────
+
+async function init() {
+  try {
+    // ── File Logger (MUST be first — before any console.log) ──────────
+    setupFileLogger();
+    console.log("[Main] lv-zero v4.1.0 starting...");
+    console.log("[Main] __dirname:", __dirname);
+    console.log("[Main] process.resourcesPath:", process.resourcesPath);
+    console.log("[Main] isPackaged:", app.isPackaged);
+    console.log("[Main] userData:", app.getPath("userData"));
+
+    // Setup CSP (needed before window creation)
+    setupCSP();
+
+    // ── Auth Guard (Fase 5) ────────────────────────────────────────────
+    // Priority 1: Check userData config (production path — survives rebuilds)
+    // Priority 2: Fallback to .env (development path — gitignored)
+    // In packaged builds, .env is excluded, so only userData config works.
+    const apiKey = readStoredApiKey() || readDotEnvKey();
+    hasApiKey = apiKey !== null;
+
+    if (hasApiKey) {
+      // Set env so dotenv/orchestrator picks it up
+      process.env.DEEPSEEK_API_KEY = apiKey;
+      console.log("[Main] API key loaded (source:", readStoredApiKey() ? "userData" : ".env", ")");
+
+      // Normal startup: initialize orchestrator + bridges
+      console.log("[Main] Loading orchestrator...");
+      const { default: Orchestrator } = await import("./core/orchestrator.js");
+      orchestrator = new Orchestrator();
+
+      try {
+        await orchestrator.init({ autoSave: true });
+      } catch (err) {
+        console.error(`[Main] Fatal orchestrator error: ${err.message}`);
+        console.error(`[Main] Stack: ${err.stack}`);
+        app.quit();
+        return;
+      }
+
+      // Load bridges (ESM modules)
+      console.log("[Main] Loading bridges...");
+      try {
+        terminalBridge = await import("./terminal_bridge.js");
+        fileBridge = await import("./file_bridge.js");
+        console.log("[Main] Bridges loaded successfully");
+      } catch (err) {
+        console.error(`[Main] Bridge load error: ${err.message}`);
+        console.error(`[Main] Stack: ${err.stack}`);
+        app.quit();
+        return;
+      }
+    } else {
+      console.log("[Main] No API key found — entering auth mode");
+    }
+
+    // ── Create window (always — even in auth mode) ──
+    console.log("[Main] Creating window...");
+    createWindow();
+
+    // Setup application menu
+    setupAppMenu();
+
+    if (hasApiKey) {
+      // ── Full startup: all IPC bridges + event forwarding ──
+      console.log("[Main] Setting up IPC...");
+      setupIPC();
+      terminalBridge.setupTerminalIPC(ipcMain, mainWindow);
+      fileBridge.setupFileIPC(ipcMain, mainWindow);
+      connectOrchestratorEvents();
+      connectShellOutput();
+
+      // Sync active shell type for shell_executor auto-detect
+      process.env.__LV_ACTIVE_SHELL = "cmd";
+
+      // Start file watcher (Explorador Reactivo)
+      // Use explicit app root path instead of process.cwd() to avoid
+      // watching unexpected directories if CWD changes during startup
+      const APP_ROOT = path.resolve(__dirname, "..");
+      setTimeout(() => {
+        if (fileBridge && fileBridge.startFileWatcher) {
+          fileBridge.startFileWatcher(mainWindow, APP_ROOT);
+          console.log(`[Main] File watcher started on ${APP_ROOT}`);
+        }
+      }, 2000);
+
+      console.log("[Main] lv-zero v4.1.0 — Fully initialized");
+    } else {
+      // ── Auth mode: only auth IPC, no orchestrator ──
+      setupAuthIPC();
+
+      // Once the window is ready, tell the frontend to show the auth modal
+      mainWindow.once("ready-to-show", () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("auth:requireKey", {
+            message: "Welcome to lv-zero — Please enter your DeepSeek API Key to continue.",
+          });
+        }
+      });
+
+      console.log("[Main] Waiting for API key...");
+    }
+  } catch (err) {
+    console.error(`[Main] UNEXPECTED INIT ERROR: ${err.message}`);
+    console.error(`[Main] Stack: ${err.stack}`);
+
+    // Try to show an error dialog
+    try {
+      dialog.showErrorBox(
+        "lv-zero — Startup Error",
+        `The application failed to start:\n\n${err.message}\n\nCheck the log file for details:\n${_logPath || "N/A"}`
+      );
+    } catch (_) {
+      // dialog itself might fail
+    }
+
+    app.quit();
+  }
+}
+
+app.whenReady().then(init);
+
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+    if (orchestrator && terminalBridge && fileBridge) {
+      setupIPC();
+      terminalBridge.setupTerminalIPC(ipcMain, mainWindow);
+      fileBridge.setupFileIPC(ipcMain, mainWindow);
+      connectOrchestratorEvents();
+      connectShellOutput();
+      if (fileBridge && fileBridge.startFileWatcher) {
+        const APP_ROOT = path.resolve(__dirname, "..");
+        fileBridge.startFileWatcher(mainWindow, APP_ROOT);
+      }
+    }
+  }
+});
+
+app.on("window-all-closed", async () => {
+  if (orchestrator) {
+    await orchestrator.shutdown();
+  }
+  if (fileBridge) {
+    fileBridge.stopFileWatcher();
+  }
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("before-quit", async () => {
+  // Each cleanup step is isolated — one failure must not block the rest
+  try { if (terminalBridge) terminalBridge.shutdownTerminal(); }
+  catch (e) { console.error("[Main] Terminal shutdown error:", e); }
+
+  try { if (fileBridge) fileBridge.stopFileWatcher(); }
+  catch (e) { console.error("[Main] Watcher stop error:", e); }
+
+  try { if (orchestrator) await orchestrator.shutdown(); }
+  catch (e) { console.error("[Main] Orchestrator shutdown error:", e); }
+});

@@ -1,0 +1,26 @@
+# graphify ignore — same syntax as .gitignore
+node_modules/
+dist/
+dist_new/
+asar_content/
+.graphify/
+npm/
+install/
+.git/
+_roo/
+_asar_tmp_patch/
+tmp_asar_check/
+tmp_reasonix/
+test_app/
+test/
+postgres/
+--output-dir/
+--prefix/
+-Force/
+scripts/
+tools/
+*.log
+*.exe
+*.dll
+*.pak
+*.bin

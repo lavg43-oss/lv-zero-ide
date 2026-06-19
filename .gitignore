@@ -1,0 +1,87 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# lv-zero — .gitignore
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── Environment ──────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env_siae
+.env_siae.example
+
+# ─── Dependencies ────────────────────────────────────────────────────────
+node_modules/
+asar_content/node_modules/
+
+# ─── Build Output ─────────────────────────────────────────────────────────
+dist/
+dist_new/
+out/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+
+# ─── OS Files ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── IDE / Editor ─────────────────────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Test & Temp ──────────────────────────────────────────────────────────
+test/
+test_app/
+tmp_*
+_asar_tmp_patch/
+--output-dir/
+--prefix/
+-Force/
+.graphify/
+.lv-zero-data/
+graphify-out/
+install/
+npm/
+postgres/
+raw/
+scripts/
+slidev-decks/
+tmp_asar_check/
+tmp_reasonix/
+Nueva carpeta/
+_clones/
+
+# ─── Diagnostic Files ─────────────────────────────────────────────────────
+_diag_*
+_explore_*
+_graph_audit*
+_net_diag*
+_save_map*
+_copy_map*
+_write_map*
+_supa_test*
+_verify_*
+_verification_*
+_test_*
+
+# ─── Electron / ASAR ──────────────────────────────────────────────────────
+asar_content/
+*.asar
+
+# ─── Project Specific ─────────────────────────────────────────────────────
+plans/
+tools/
+skills/.snapshots/
+
+# ─── Local lib (user-specific config) ─────────────────────────────────────
+_lib/
+
+# ─── Telemetry (local only) ───────────────────────────────────────────────
+.lv-zero/

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lv-zero — Autonomous System Architect</title>
+
+  <!-- ═══ XTerm CSS ═══ -->
+  <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css" />
+
+  <!-- ═══ App Styles ═══ -->
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Syntax Highlighting (highlight.js) -->
+  <link rel="stylesheet" href="./highlight-theme.css" />
+</head>
+<body>
+  <!-- ═══ Top Bar ═══ -->
+  <header id="topbar">
+    <div class="topbar-left">
+      <span class="logo">lv-zero</span>
+      <span class="version">v4.0</span>
+    </div>
+    <div class="topbar-center">
+      <span id="status-badge" class="status-badge initializing">⏳ Initializing...</span>
+      <div id="context-gauge" class="context-gauge hidden" title="Context usage">
+        <div class="gauge-track">
+          <div id="gauge-fill" class="gauge-fill" style="width: 0%"></div>
+        </div>
+        <span id="gauge-label" class="gauge-label">0/64K</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="view-menu-container">
+        <button id="btn-view-menu" title="Toggle Panels (View)" class="topbar-btn" aria-label="Toggle Panels">☰ View</button>
+        <div id="view-dropdown" class="view-dropdown hidden">
+          <div class="view-dropdown-item" data-panel="explorer">
+            <span class="view-check">✓</span> Explorer <span class="view-shortcut">Ctrl+B</span>
+          </div>
+          <div class="view-dropdown-item" data-panel="chat">
+            <span class="view-check">✓</span> AI Chat <span class="view-shortcut">Ctrl+Shift+C</span>
+          </div>
+          <div class="view-dropdown-item" data-panel="terminal">
+            <span class="view-check">✓</span> Terminal <span class="view-shortcut">Ctrl+J</span>
+          </div>
+          <div class="view-dropdown-item" data-panel="inspector">
+            <span class="view-check"></span> Inspector <span class="view-shortcut">Ctrl+Shift+I</span>
+          </div>
+        </div>
+      </div>
+      <button id="btn-new-terminal" title="New Terminal" class="topbar-btn" aria-label="New Terminal">⊞</button>
+      <button id="btn-clear-conversation" title="Clear Conversation" class="topbar-btn" aria-label="Clear Conversation">🗑</button>
+    </div>
+  </header>
+
+  <!-- ═══ Main IDE Layout (Split.js) ═══ -->
+  <div id="app">
+    <!-- ── Panel 1: File Explorer ── -->
+    <div id="panel-explorer" class="panel">
+      <!-- Explorer Section -->
+      <div class="panel-header">
+        <span>📁 Explorer</span>
+        <span class="panel-actions">
+          <button id="btn-parent-folder" title="Ir a carpeta superior" class="panel-btn" style="margin-left: 4px; cursor: pointer;">⬆</button>
+          <button id="btn-refresh-tree" title="Refresh" class="panel-btn">↻</button>
+          <button id="btn-mapa-proyecto" title="Open project map (graphify)" class="panel-btn">🗺️</button>
+        </span>
+      </div>
+      <div class="explorer-search-bar">
+        <input
+          id="explorer-search-input"
+          class="explorer-search-input"
+          type="text"
+          placeholder="Search files..."
+          spellcheck="false"
+        />
+      </div>
+      <div id="file-tree" class="file-tree">
+        <div class="tree-loading">Loading...</div>
+      </div>
+
+      <!-- Source Control Section -->
+      <div class="vc-divider"></div>
+      <div class="panel-header vc-header">
+        <span>🔀 Source Control</span>
+        <span class="panel-actions">
+          <button id="btn-refresh-vc" title="Refresh Git Status" class="panel-btn">↻</button>
+          <button id="btn-auto-commit" title="Auto-Commit via AI" class="panel-btn">🤖</button>
+        </span>
+      </div>
+      <div id="vc-panel" class="vc-panel">
+        <div class="vc-branch">
+          <span class="vc-branch-icon">⎇</span>
+          <span id="vc-branch-name" class="vc-branch-name">—</span>
+          <span id="vc-branch-status" class="vc-branch-status"></span>
+        </div>
+        <div id="vc-file-list" class="vc-file-list">
+          <div class="vc-empty">Open a Git repository to see changes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Panel 2: Editor + Terminal (vertical split) ── -->
+    <div id="panel-center" class="panel">
+      <!-- Editor -->
+      <div id="editor-container" class="panel">
+        <div id="editor-tabs-bar" class="editor-tabs-bar">
+          <!-- Tabs are rendered dynamically by IDEController -->
+          <span class="panel-actions" style="margin-left:auto;display:flex;gap:4px;padding-right:4px;">
+            <button id="btn-preview" title="Live Preview — see your app running" class="panel-btn">🌐 Preview</button>
+            <button id="btn-publish" title="🚀 Publicar en Cloudflare Pages (GRATIS)" class="panel-btn btn-publish">🚀 Publicar</button>
+          </span>
+        </div>
+        <div id="editor-main-area" class="editor-main-area">
+          <div id="monaco-editor" class="monaco-editor-holder"></div>
+          <!-- Live Preview Panel (hidden by default) -->
+          <div id="preview-panel" class="preview-panel hidden">
+            <div class="preview-toolbar">
+              <button id="btn-preview-reload" title="Reload" class="panel-btn">↻</button>
+              <button id="btn-preview-start-server" title="Start dev server" class="panel-btn">▶</button>
+              <button id="btn-preview-stop-server" title="Stop dev server" class="panel-btn">⏹</button>
+              <input id="preview-url" class="preview-url-input" type="text" value="http://localhost:3000" spellcheck="false" />
+              <span id="preview-framework" class="preview-framework-label"></span>
+            </div>
+            <iframe id="preview-iframe" class="preview-iframe" src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+          </div>
+          <!-- 🌐 Browser Panel (hidden by default) -->
+          <div id="browser-panel" class="browser-panel hidden">
+            <div class="browser-toolbar">
+              <button id="browser-back" class="browser-nav-btn" title="Back">◀</button>
+              <button id="browser-forward" class="browser-nav-btn" title="Forward">▶</button>
+              <button id="browser-reload" class="browser-nav-btn" title="Reload">↻</button>
+              <input id="browser-url" class="browser-url-input" type="text" placeholder="https://..." spellcheck="false" />
+              <button id="browser-go" class="browser-nav-btn" title="Go">➤</button>
+              <button id="browser-test-links" class="browser-test-btn" title="Check links">🔗</button>
+              <button id="browser-test-images" class="browser-test-btn" title="Check images">🖼</button>
+              <button id="browser-test-console" class="browser-test-btn" title="Show console">📋</button>
+              <button id="browser-close" class="browser-nav-btn" title="Close browser">✕</button>
+            </div>
+            <webview id="browser-webview" class="browser-webview" src="about:blank" style="flex:1;width:100%;height:100%;"></webview>
+          </div>
+        </div>
+        <!-- Diff Editor Overlay (hidden by default) -->
+        <div id="diff-overlay" class="diff-overlay hidden">
+          <div class="diff-header">
+            <span class="diff-title">📄 Review Changes</span>
+            <span class="diff-filepath" id="diff-filepath"></span>
+          </div>
+          <div id="diff-editor-container" class="diff-editor-container"></div>
+          <div class="diff-actions">
+            <button id="diff-btn-accept" class="diff-btn diff-btn-accept">✅ Accept</button>
+            <button id="diff-btn-reject" class="diff-btn diff-btn-reject">❌ Reject</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div id="terminal-container" class="panel">
+        <div class="panel-header">
+          <span>⬛ Terminal</span>
+          <span class="panel-actions">
+            <select id="terminal-shell-selector" class="terminal-shell-selector" title="Select shell">
+              <option value="cmd">CMD</option>
+              <option value="powershell">PowerShell</option>
+            </select>
+            <button id="btn-init-terminal" title="Start Terminal" class="panel-btn">▶</button>
+          </span>
+        </div>
+        <div id="xterm-container" class="xterm-holder"></div>
+      </div>
+    </div>
+
+    <!-- ── Panel 3: AI Chat + Inspector ── -->
+    <div id="panel-chat" class="panel">
+      <div class="panel-header">
+        <span>🤖 AI Chat</span>
+        <span class="panel-actions">
+          <button id="btn-new-session" title="New Session" class="panel-btn">➕</button>
+          <button id="btn-amnesia" title="🧹 Amnesia — Clear short-term memory (preserves mode prompt)" class="panel-btn">🧹</button>
+          <button id="btn-chat-settings" title="Settings" class="panel-btn">⚙</button>
+        </span>
+      </div>
+      <!-- Mode Selector -->
+      <div id="mode-selector" class="mode-selector">
+        <button class="mode-btn mode-btn-orchestrator active" data-mode="orchestrator" title="🔄 Orchestrator — Coordinate and orchestrate">🔄</button>
+        <button class="mode-btn mode-btn-architect" data-mode="architect" title="🏗️ Architect — Design and plan">🏗️</button>
+        <button class="mode-btn mode-btn-code" data-mode="code" title="💻 Code — Write and implement">💻</button>
+        <button class="mode-btn mode-btn-ask" data-mode="ask" title="❓ Ask — Explain and research">❓</button>
+        <button class="mode-btn mode-btn-debug" data-mode="debug" title="🐛 Debug — Troubleshoot and fix">🐛</button>
+        <span id="current-mode-label" class="current-mode-label">🔄 Orchestrator</span>
+        <div id="model-selector" class="model-selector" title="Override model — click to change">
+            <button id="btn-model-override" class="model-override-btn" title="Override model">⚡</button>
+            <span id="current-model-label" class="current-model-label">Flash</span>
+            <div id="model-dropdown" class="model-dropdown hidden">
+              <button class="model-option" data-tier="auto" title="Let the system choose the best model automatically">
+                <span class="model-option-icon">🔄</span>
+                <span class="model-option-name">Auto</span>
+                <span class="model-option-desc">Automático</span>
+              </button>
+              <button class="model-option" data-tier="free" title="🆓 Free — OpenRouter gratuito (GPT-OSS 120B / GPT-OSS 20B)">
+                <span class="model-option-icon">🆓</span>
+                <span class="model-option-name">Free</span>
+                <span class="model-option-desc">GPT-OSS 120B · GPT-OSS 20B</span>
+              </button>
+              <button class="model-option" data-tier="cheap" title="Flash — modelo rápido y ligero">
+                <span class="model-option-icon">⚡</span>
+                <span class="model-option-name">Flash</span>
+                <span class="model-option-desc">deepseek-v4-flash</span>
+              </button>
+              <button class="model-option" data-tier="reasoner" title="Pro — modelo potente con razonamiento profundo">
+                <span class="model-option-icon">🧠</span>
+                <span class="model-option-name">Pro</span>
+                <span class="model-option-desc">deepseek-v4-pro</span>
+              </button>
+            </div>
+          </div>
+      </div>
+      <!-- Mode Suggestion Banner (hidden by default) -->
+      <div id="mode-suggestion-banner" class="mode-suggestion-banner hidden">
+        <span id="mode-suggestion-text" class="mode-suggestion-text"></span>
+        <button id="mode-suggestion-accept" class="mode-suggestion-btn">Switch</button>
+        <button id="mode-suggestion-dismiss" class="mode-suggestion-dismiss" title="Dismiss">&times;</button>
+      </div>
+      <!-- Follow-Up Question Banner (hidden by default) -->
+      <div id="followup-question-banner" class="followup-question-banner hidden">
+        <span id="followup-question-text">❓ Question here</span>
+        <div id="followup-question-options" class="followup-options"></div>
+        <input type="text" id="followup-question-input" class="followup-input" placeholder="O escribe tu respuesta...">
+        <button id="followup-question-submit">Enviar</button>
+        <button id="followup-question-dismiss">Cancelar</button>
+      </div>
+
+      <!-- Tool Confirmation Banner (Shell Execute Warning) -->
+      <div id="tool-confirmation-banner" class="tool-confirmation-banner hidden">
+        <span id="tool-confirmation-icon">⚠️</span>
+        <span id="tool-confirmation-text">Shell command requires approval:</span>
+        <code id="tool-confirmation-command"></code>
+        <div class="tool-confirmation-actions">
+          <button id="tool-confirmation-approve" class="tool-confirm-btn approve">✓ Approve</button>
+          <button id="tool-confirmation-dismiss" class="tool-confirm-btn dismiss">✕ Dismiss</button>
+        </div>
+      </div>
+
+      <!-- Session Tabs -->
+      <div id="session-tabs" class="session-tabs">
+        <div class="session-tab active" data-session-id="default">Session 1</div>
+      </div>
+
+      <!-- Chat Messages -->
+      <div id="chat-search-bar" class="chat-search-bar hidden">
+        <input
+          id="chat-search-input"
+          class="chat-search-input"
+          type="text"
+          placeholder="Search messages... (Ctrl+F)"
+        />
+        <span id="chat-search-count" class="chat-search-count">0/0</span>
+        <button id="chat-search-prev" class="chat-search-btn" title="Previous match">▲</button>
+        <button id="chat-search-next" class="chat-search-btn" title="Next match">▼</button>
+        <button id="chat-search-close" class="chat-search-btn" title="Close search (Esc)">✕</button>
+      </div>
+      <div id="chat-messages" class="chat-messages">
+        <div class="message system">
+          <div class="message-avatar">⚡</div>
+          <div class="message-content">
+            <div class="message-header">
+              <strong>lv-zero</strong>
+            </div>
+            <div class="message-body">
+              Welcome — Autonomous System Architect
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Workflow Progress Bar (hidden by default) -->
+      <div id="workflow-progress" class="workflow-progress hidden">
+        <div class="workflow-progress-header">
+          <span class="workflow-progress-icon">🔄</span>
+          <span class="workflow-progress-command">/debug</span>
+          <span class="workflow-progress-status">Paso <span class="wp-current">1</span>/<span class="wp-total">5</span></span>
+        </div>
+        <div class="workflow-progress-track">
+          <div class="workflow-progress-fill" style="width: 20%"></div>
+        </div>
+        <span id="workflow-progress-subtitle" class="workflow-progress-stepname"></span>
+      </div>
+
+      <!-- Task Completion Banner (Batch 3 — Item #4) -->
+      <div id="task-banner" class="task-banner hidden">
+        <span class="task-banner-icon">✅</span>
+        <span class="task-banner-text">Tarea completada</span>
+        <button class="task-banner-close" title="Dismiss">✕</button>
+      </div>
+
+      <!-- Task Status Bar (Heartbeat) -->
+      <div id="task-status-bar" class="task-status-bar hidden">
+        <span id="task-status-icon" class="task-status-icon">🔄</span>
+        <span id="task-status-text" class="task-status-text">Working...</span>
+        <span id="task-status-timer" class="task-status-timer">00:00</span>
+      </div>
+
+      <!-- Chat Input -->
+      <div id="chat-input-area" class="chat-input-area">
+        <div id="drop-overlay" class="drop-overlay hidden">
+          <span>📄 Drop files here to read & include in chat</span>
+        </div>
+        <div id="autocomplete-box" class="autocomplete-box hidden"></div>
+        <div class="input-row">
+          <textarea
+            id="chat-input"
+            class="chat-input"
+            placeholder="Ask anything or use /plan, /code, /debug..."
+            rows="3"
+            maxlength="100000"
+          ></textarea>
+          <span id="charCounter" class="char-counter">0/100000</span>
+          <button id="attach-btn" class="attach-btn" title="Adjuntar archivo">📎</button>
+          <button id="send-btn" class="send-btn" title="Send (Enter)">➤</button>
+          <button id="stop-btn" class="stop-btn hidden" title="⏹ Stop agent">⏹</button>
+          <input type="file" id="hidden-file-input" class="hidden-file-input" multiple />
+          <span id="queue-badge" class="queue-badge hidden">0</span>
+        </div>
+        <div id="auto-approve-bar" class="auto-approve-bar">
+          <div class="auto-approve-header">
+            <span class="auto-approve-title">⚡ Auto-Approve</span>
+            <span class="auto-approve-subtitle">When ON, the agent performs these actions without asking permission</span>
+          </div>
+          <div class="auto-approve-toggles">
+            <label class="auto-approve-toggle" title="When ON: agent reads files without asking — useful for context gathering">
+              <input type="checkbox" id="auto-read" data-key="read" checked>
+              <span>📖 Read</span>
+            </label>
+            <label class="auto-approve-toggle" title="When ON: agent writes/edits files immediately — useful for fast iteration, OFF for review">
+              <input type="checkbox" id="auto-write" data-key="write">
+              <span>✏️ Write</span>
+            </label>
+            <label class="auto-approve-toggle" title="When ON: agent switches modes (architect/code/debug) automatically">
+              <input type="checkbox" id="auto-mode" data-key="mode" checked>
+              <span>🔄 Mode</span>
+            </label>
+            <label class="auto-approve-toggle" title="When ON: agent runs terminal commands (npm, git, etc.) without confirmation">
+              <input type="checkbox" id="auto-execute" data-key="execute">
+              <span>⚡ Execute</span>
+            </label>
+            <label class="auto-approve-toggle" title="When ON: agent asks clarification questions directly — OFF means you'll see prompts first">
+              <input type="checkbox" id="auto-question" data-key="question" checked>
+              <span>❓ Question</span>
+            </label>
+            <label class="auto-approve-toggle" title="When ON: agent delegates subtasks to other modes/agents without asking">
+              <input type="checkbox" id="auto-subtasks" data-key="subtasks" checked>
+              <span>📋 Subtasks</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🔌 MCP Servers (collapsible) -->
+      <details id="mcp-panel" class="mcp-panel">
+        <summary class="mcp-panel-header">
+          <span>🔌 MCP Servers <span id="mcp-count-badge" class="mcp-count-badge">0</span></span>
+          <span class="mcp-header-actions">
+            <button id="mcp-registry-btn" class="mcp-registry-btn" title="Browse preconfigured MCP servers from the registry">📦</button>
+            <button id="mcp-add-btn" class="mcp-add-btn" title="Add a custom MCP server">➕</button>
+            <button id="mcp-reload-all-btn" class="mcp-reload-all-btn" title="Reconnect all servers">🔄</button>
+          </span>
+        </summary>
+        <div id="mcp-server-list" class="mcp-server-list">
+          <div class="mcp-empty">No hay servidores MCP configurados</div>
+        </div>
+        <!-- Tool Management UI (hidden by default, shown per-server) -->
+        <div id="mcp-tool-panel" class="mcp-tool-panel hidden">
+          <div class="mcp-tool-panel-header">
+            <span id="mcp-tool-panel-title">Tools</span>
+            <button id="mcp-tool-panel-close" class="mcp-tool-panel-close" title="Close">✕</button>
+          </div>
+          <div id="mcp-tool-list" class="mcp-tool-list"></div>
+        </div>
+        <div id="mcp-add-form" class="mcp-add-form hidden">
+          <div class="mcp-form-row">
+            <label class="mcp-form-label">Name</label>
+            <input id="mcp-form-name" class="mcp-form-input" type="text" placeholder="my-server" />
+          </div>
+          <div class="mcp-form-row">
+            <label class="mcp-form-label">Type</label>
+            <select id="mcp-form-type" class="mcp-form-select">
+              <option value="stdio">stdio (local command)</option>
+              <option value="streamable-http">Streamable HTTP (remote)</option>
+            </select>
+          </div>
+          <div id="mcp-form-stdio-fields" class="mcp-form-fields-group">
+            <div class="mcp-form-row">
+              <label class="mcp-form-label">Command</label>
+              <input id="mcp-form-command" class="mcp-form-input" type="text" placeholder="npx, node, python..." />
+            </div>
+            <div class="mcp-form-row">
+              <label class="mcp-form-label">Args</label>
+              <input id="mcp-form-args" class="mcp-form-input" type="text" placeholder="--port 3000 (space-separated)" />
+            </div>
+          </div>
+          <div id="mcp-form-http-fields" class="mcp-form-fields-group hidden">
+            <div class="mcp-form-row">
+              <label class="mcp-form-label">URL</label>
+              <input id="mcp-form-url" class="mcp-form-input" type="text" placeholder="https://my-mcp-server.example.com/sse" />
+            </div>
+          </div>
+          <div class="mcp-form-row">
+            <label class="mcp-form-label">Env vars</label>
+            <textarea id="mcp-form-env" class="mcp-form-textarea" placeholder='{ "API_KEY": "xxx", "NODE_ENV": "production" }'></textarea>
+          </div>
+          <div class="mcp-form-row">
+            <label class="mcp-form-label">Auto-connect</label>
+            <input id="mcp-form-autoconnect" class="mcp-form-checkbox" type="checkbox" checked />
+          </div>
+          <div class="mcp-form-actions">
+            <button id="mcp-form-cancel" class="mcp-form-btn mcp-form-btn-cancel">Cancel</button>
+            <button id="mcp-form-save" class="mcp-form-btn mcp-form-btn-save">Save & Connect</button>
+          </div>
+          <div id="mcp-form-status" class="mcp-form-status"></div>
+        </div>
+      </details>
+
+      <!-- ═══ MCP Registry Browser Modal ═══ -->
+      <div id="mcp-registry-overlay" class="mcp-registry-overlay hidden">
+        <div class="mcp-registry-modal">
+          <div class="mcp-registry-header">
+            <span>📦 MCP Server Registry</span>
+            <button id="mcp-registry-close" class="mcp-registry-close" title="Close">✕</button>
+          </div>
+          <div class="mcp-registry-search">
+            <input id="mcp-registry-search-input" type="text" placeholder="Search servers..." autocomplete="off" />
+          </div>
+          <div id="mcp-registry-list" class="mcp-registry-list">
+            <div class="mcp-registry-loading">Loading registry...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ MCP Env Config Modal ═══ -->
+      <div id="mcp-env-overlay" class="mcp-env-overlay hidden">
+        <div class="mcp-env-modal">
+          <div class="mcp-env-header">
+            <span id="mcp-env-title">Configure Server</span>
+            <button id="mcp-env-close" class="mcp-env-close" title="Close">✕</button>
+          </div>
+          <div class="mcp-env-body">
+            <p id="mcp-env-description" class="mcp-env-description"></p>
+            <div id="mcp-env-fields" class="mcp-env-fields"></div>
+          </div>
+          <div class="mcp-env-actions">
+            <button id="mcp-env-cancel" class="mcp-env-btn mcp-env-btn-cancel">Cancel</button>
+            <button id="mcp-env-activate" class="mcp-env-btn mcp-env-btn-activate">Activate & Connect</button>
+          </div>
+          <div id="mcp-env-status" class="mcp-env-status"></div>
+        </div>
+      </div>
+
+      <!-- Inspector Log (collapsible) -->
+      <details id="inspector-panel" class="inspector-panel">
+        <summary class="inspector-header">⚙ Logic Inspector</summary>
+        <div id="inspector-log" class="inspector-log"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ═══ Crash Recovery Modal (Batch 3 — Item #1) ═══ -->
+  <div id="crash-overlay" class="crash-overlay hidden">
+    <div class="crash-modal">
+      <div class="crash-icon">⚠️</div>
+      <h2 class="crash-title">Crash detectado en la sesión anterior</h2>
+      <p class="crash-description">
+        La sesión anterior terminó inesperadamente. ¿Deseas restaurar el estado anterior o empezar una nueva sesión?
+      </p>
+      <div class="crash-actions">
+        <button id="crash-btn-restore" class="crash-btn crash-btn-restore">Restaurar sesión</button>
+        <button id="crash-btn-new" class="crash-btn crash-btn-new">Empezar nueva</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Project Wizard Modal (Phase 9 — Init Pipeline Manager) ═══ -->
+  <div id="project-wizard-overlay" class="project-wizard-overlay hidden">
+    <div class="project-wizard">
+      <div class="project-wizard-header">
+        <span>🚀 New Project</span>
+        <button id="btn-wizard-close" class="project-wizard-close" title="Close">✕</button>
+      </div>
+      <div id="project-wizard-step-indicator" class="project-wizard-step-indicator"></div>
+      <div id="project-wizard-body" class="project-wizard-body"></div>
+      <div id="project-wizard-footer" class="project-wizard-footer">
+        <button id="btn-wizard-prev" class="project-wizard-btn project-wizard-btn-prev hidden">← Back</button>
+        <span id="project-wizard-progress" class="project-wizard-progress"></span>
+        <button id="btn-wizard-next" class="project-wizard-btn project-wizard-btn-next">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Diagnose Wizard (Phase 10) — 5-Step Guided Debugging ═══ -->
+  <div id="diagnose-wizard-overlay" class="diagnose-wizard-overlay hidden">
+    <div class="diagnose-wizard">
+      <div class="diagnose-wizard-header">
+        <span>🧪 Diagnose Wizard — 5-Step Debugging</span>
+        <button id="btn-diagnose-close" class="diagnose-wizard-close" title="Close">✕</button>
+      </div>
+      <div id="diagnose-step-indicator" class="diagnose-step-indicator"></div>
+      <div id="diagnose-body" class="diagnose-body"></div>
+      <div id="diagnose-footer" class="diagnose-footer">
+        <button id="btn-diagnose-prev" class="diagnose-btn diagnose-btn-prev hidden">← Back</button>
+        <span id="diagnose-progress" class="diagnose-progress">Step 1 / 5</span>
+        <button id="btn-diagnose-next" class="diagnose-btn diagnose-btn-next">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Grill Me Wizard (Phase 4 – Scope Interview) — 7-Step Scoping ═══ -->
+  <div id="grill-me-overlay" class="grill-me-overlay hidden">
+    <div class="grill-me-modal">
+      <div class="grill-me-header">
+        <span>🔥 Grill Me — Scope Interview</span>
+        <button id="btn-grill-me-close" class="grill-me-close" title="Close">✕</button>
+      </div>
+      <div id="grill-me-step-indicator" class="grill-me-step-indicator"></div>
+      <div id="grill-me-body" class="grill-me-body"></div>
+      <div id="grill-me-footer" class="grill-me-footer">
+        <button id="btn-grill-me-prev" class="grill-me-btn grill-me-btn-prev hidden">← Back</button>
+        <span id="grill-me-progress" class="grill-me-progress">Question 1 / 7</span>
+        <button id="btn-grill-me-next" class="grill-me-btn grill-me-btn-next">Next →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Auth Modal (Fase 5 — Bloqueante: Welcome / API Key) ═══ -->
+  <!-- Visible solo cuando no se ha configurado una API Key -->
+  <div id="auth-overlay" class="auth-overlay hidden">
+    <div class="auth-modal">
+      <div class="auth-logo">lv-zero</div>
+      <div class="auth-subtitle">Autonomous System Architect</div>
+      <h1 class="auth-title">Welcome</h1>
+      <p class="auth-description">
+        Enter your <strong>DeepSeek API Key</strong> to start using lv-zero.
+        Your key is stored securely on your device and never shared.
+      </p>
+      <div class="auth-input-group">
+        <label for="auth-input-key" class="auth-label">DeepSeek API Key</label>
+        <input
+          id="auth-input-key"
+          class="auth-input"
+          type="password"
+          placeholder="sk-..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="auth-btn-save" class="auth-btn">Save & Start</button>
+      </div>
+      <div id="auth-error" class="auth-error hidden"></div>
+      <p class="auth-footer">
+        Don't have a key?
+        <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">Get one here</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══ Settings Modal (Auto-Approve + Theme + API Keys) ═══ -->
+  <div id="settings-overlay" class="settings-overlay hidden">
+    <div class="settings-modal">
+      <div class="settings-header">
+        <span>⚙️ Settings</span>
+        <button id="btn-settings-close" class="settings-close" title="Close">✕</button>
+      </div>
+      <div class="settings-body">
+        <label class="settings-toggle">
+          <input type="checkbox" id="chk-auto-approve-edits" />
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Auto-approve file edits <span class="toggle-hint">(Skip Diff)</span></span>
+        </label>
+        <label class="settings-toggle">
+          <input type="checkbox" id="chk-auto-approve-terminal" />
+          <span class="toggle-slider"></span>
+          <span class="toggle-label">Auto-approve terminal execution</span>
+        </label>
+        <div class="settings-divider"></div>
+        <div class="settings-theme-row">
+          <span class="settings-theme-label">🎨 Theme</span>
+          <button id="btn-theme-toggle" class="theme-toggle-btn">
+            <span class="theme-toggle-icon">☀️</span>
+            <span class="theme-toggle-text">Light Mode</span>
+          </button>
+        </div>
+
+        <!-- ═══ API Key Management (Phase 0.1) ═══ -->
+        <div class="settings-divider"></div>
+        <div class="settings-section-title">🔑 API Keys</div>
+        <div id="api-key-manager" class="api-key-manager">
+          <div class="api-key-list" id="api-key-list">
+            <div class="api-key-loading">Loading keys...</div>
+          </div>
+          <div class="api-key-add-row">
+            <select id="api-key-service-select" class="api-key-service-select">
+              <option value="deepseek">DeepSeek</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="gemini">Gemini</option>
+              <option value="custom">Custom...</option>
+            </select>
+            <input
+              id="api-key-input"
+              class="api-key-input"
+              type="password"
+              placeholder="sk-..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button id="api-key-add-btn" class="api-key-add-btn">➕ Add</button>
+          </div>
+          <div id="api-key-status" class="api-key-status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Toast Container (Phase 9.1 — Multi-type Toast System) ═══ -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ═══ Keyboard Shortcuts Help Overlay (Phase 9.2) ═══ -->
+  <div id="shortcuts-overlay" class="shortcuts-overlay hidden">
+    <div class="shortcuts-modal">
+      <div class="shortcuts-header">
+        <span>⌨️ Keyboard Shortcuts</span>
+        <button id="btn-shortcuts-close" class="shortcuts-close" title="Close">✕</button>
+      </div>
+      <div class="shortcuts-body">
+        <table class="shortcuts-table">
+          <tr><th colspan="2">General</th></tr>
+          <tr><td><kbd>Ctrl+Enter</kbd></td><td>Send message</td></tr>
+          <tr><td><kbd>Ctrl+Shift+Enter</kbd></td><td>New line in input</td></tr>
+          <tr><td><kbd>Ctrl+O</kbd></td><td>Open file</td></tr>
+          <tr><td><kbd>Ctrl+S</kbd></td><td>Save file</td></tr>
+          <tr><td><kbd>Ctrl+Shift+S</kbd></td><td>Save as</td></tr>
+          <tr><td><kbd>Ctrl+F</kbd></td><td>Search chat messages</td></tr>
+          <tr><td><kbd>Escape</kbd></td><td>Close modal / cancel</td></tr>
+
+          <tr><th colspan="2">Mode Switching</th></tr>
+          <tr><td><kbd>Ctrl+1</kbd></td><td>Switch to Architect mode</td></tr>
+          <tr><td><kbd>Ctrl+2</kbd></td><td>Switch to Code mode</td></tr>
+          <tr><td><kbd>Ctrl+3</kbd></td><td>Switch to Ask mode</td></tr>
+          <tr><td><kbd>Ctrl+4</kbd></td><td>Switch to Debug mode</td></tr>
+
+          <tr><th colspan="2">Panel Toggles</th></tr>
+          <tr><td><kbd>Ctrl+B</kbd></td><td>Toggle explorer panel</td></tr>
+          <tr><td><kbd>Ctrl+J</kbd></td><td>Toggle terminal panel</td></tr>
+          <tr><td><kbd>Ctrl+Shift+C</kbd></td><td>Toggle AI chat panel</td></tr>
+          <tr><td><kbd>Ctrl+Shift+M</kbd></td><td>Toggle MCP panel</td></tr>
+          <tr><td><kbd>Ctrl+Shift+E</kbd></td><td>Focus explorer panel</td></tr>
+          <tr><td><kbd>Ctrl+Shift+T</kbd></td><td>Focus terminal panel</td></tr>
+          <tr><td><kbd>Ctrl+Shift+A</kbd></td><td>Focus AI chat panel</td></tr>
+
+          <tr><th colspan="2">Actions</th></tr>
+          <tr><td><kbd>Ctrl+Shift+P</kbd></td><td>Open command palette</td></tr>
+          <tr><td><kbd>Ctrl+Shift+K</kbd></td><td>Open MCP registry browser</td></tr>
+          <tr><td><kbd>Ctrl+Shift+R</kbd></td><td>Run deep research</td></tr>
+          <tr><td><kbd>Ctrl+Shift+D</kbd></td><td>Toggle dark/light theme</td></tr>
+          <tr><td><kbd>Ctrl+Shift+/</kbd></td><td>Toggle this shortcuts help</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Scripts ═══ -->
+
+  <!-- Split.js (UMD) -->
+  <script src="../node_modules/split.js/dist/split.min.js"></script>
+
+  <!-- XTerm.js (UMD) -->
+  <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <!-- Monaco Editor (AMD loader) -->
+  <script src="../node_modules/monaco-editor/min/vs/loader.js"></script>
+  <script>
+    // Configure Monaco's AMD loader to find its modules
+    require.config({
+      paths: {
+        vs: "../node_modules/monaco-editor/min/vs",
+      },
+      // Monaco needs to know its base path for workers
+      "vs/editor/editor.main": {
+        baseUrl: "../node_modules/monaco-editor/min/vs",
+      },
+    });
+
+    // Provide a no-op worker to avoid CORS issues with file:// in Electron
+    // Monaco still provides syntax highlighting on the main thread.
+    self.MonacoEnvironment = {
+      getWorker(_workerId, _label) {
+        const blob = new Blob(['self.onmessage = function(e) { self.postMessage("worker-ready"); };'], {
+          type: "application/javascript",
+        });
+        return new Worker(URL.createObjectURL(blob));
+      },
+    };
+
+    // Load Monaco, then initialize the IDE
+    require(["vs/editor/editor.main"], function () {
+      // Monaco is now globally available as 'monaco'
+      document.dispatchEvent(new CustomEvent("monaco-ready", { detail: { monaco } }));
+    });
+  </script>
+
+  <!-- Main IDE Renderer -->
+  <script src="./renderer.js"></script>
+</body>
+</html>

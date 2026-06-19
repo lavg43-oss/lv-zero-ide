@@ -1,0 +1,129 @@
+{
+  "sessionId": "LV-MP0WOPJD-5MQZ",
+  "savedAt": "2026-06-18T10:39:00.167Z",
+  "mode": "orchestrator",
+  "projectPath": null,
+  "messageCount": 3314,
+  "messages": [
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:36:48.600Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:36:51.891Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:36:54.825Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:36:58.197Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:01.365Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:04.715Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:08.420Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:12.166Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:14.877Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:17.930Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:20.558Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:24.650Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:29.036Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:34.243Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:37.490Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:41.270Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:45.140Z",
+      "contentLength": 0,
+      "hasToolCalls": true
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:37:51.741Z",
+      "contentLength": 1029,
+      "hasToolCalls": false
+    },
+    {
+      "role": "user",
+      "timestamp": "2026-06-18T10:38:51.178Z",
+      "contentLength": 62,
+      "hasToolCalls": false
+    },
+    {
+      "role": "assistant",
+      "timestamp": "2026-06-18T10:39:00.166Z",
+      "contentLength": 1629,
+      "hasToolCalls": false
+    }
+  ]
+}

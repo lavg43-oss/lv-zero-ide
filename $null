@@ -1,0 +1,3 @@
+npm error code E400
+npm error 400 Bad Request - GET https://registry.npmjs.org/-/v1/search?text=%40google%2Fmcp-server-google-docs+%3B+npm+search+%40google%2Fmcp-server-google-sheets+%3B+npm+search+%40google%2Fmcp-server-google-slides&size=20&from=0&quality=0.65&popularity=0.98&maintenance=0.5 - The 'text' parameter must be between 2 and 64 characters
+npm error A complete log of this run can be found in: C:\Users\LAVG\AppData\Local\npm-cache\_logs\2026-06-19T10_28_46_377Z-debug-0.log

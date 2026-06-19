@@ -1,0 +1,61 @@
+{
+  "scenarios": [
+    {
+      "name": "Homepage Load",
+      "description": "Verify the homepage loads correctly",
+      "steps": [
+        { "action": "navigate", "params": { "url": "{{BASE_URL}}" } },
+        { "action": "wait", "params": { "timeout": 5000 } },
+        { "action": "snapshot", "params": {} }
+      ],
+      "expected": "Page loads without errors, status 200"
+    },
+    {
+      "name": "Navigation Links",
+      "description": "Verify all main navigation links work",
+      "steps": [
+        { "action": "navigate", "params": { "url": "{{BASE_URL}}" } },
+        { "action": "extract", "params": { "selector": "nav a, header a", "property": "href" } },
+        { "action": "click", "params": { "selector": "nav a:first-child, header a:first-child" } },
+        { "action": "wait", "params": { "timeout": 3000 } },
+        { "action": "snapshot", "params": {} }
+      ],
+      "expected": "Navigation links are present and clickable"
+    },
+    {
+      "name": "Form Submission",
+      "description": "Verify forms can be filled and submitted",
+      "steps": [
+        { "action": "navigate", "params": { "url": "{{BASE_URL}}" } },
+        { "action": "extract", "params": { "selector": "form", "property": "innerText" } },
+        { "action": "type", "params": { "selector": "input[type='text'], input:not([type='hidden'])", "text": "Test User" } },
+        { "action": "type", "params": { "selector": "input[type='email']", "text": "test@example.com" } },
+        { "action": "click", "params": { "selector": "button[type='submit'], input[type='submit']" } },
+        { "action": "wait", "params": { "timeout": 5000 } },
+        { "action": "snapshot", "params": {} }
+      ],
+      "expected": "Form can be filled and submitted without errors"
+    },
+    {
+      "name": "Error Handling",
+      "description": "Verify error pages and 404 handling",
+      "steps": [
+        { "action": "navigate", "params": { "url": "{{BASE_URL}}/nonexistent-page-12345" } },
+        { "action": "wait", "params": { "timeout": 3000 } },
+        { "action": "snapshot", "params": {} },
+        { "action": "extract", "params": { "selector": "body", "property": "textContent" } }
+      ],
+      "expected": "404 or error page is displayed gracefully"
+    },
+    {
+      "name": "Responsive Layout",
+      "description": "Verify page renders at different viewport sizes",
+      "steps": [
+        { "action": "navigate", "params": { "url": "{{BASE_URL}}" } },
+        { "action": "screenshot", "params": { "fullPage": true } },
+        { "action": "evaluate", "params": { "script": "window.innerWidth" } }
+      ],
+      "expected": "Page is responsive and renders correctly"
+    }
+  ]
+}

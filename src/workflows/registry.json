@@ -1,0 +1,44 @@
+{
+  "commands": {
+    "/plan": {
+      "workflow": "lifecycle/plan.md",
+      "description": "Diseñar arquitectura y plan de acción antes de codificar",
+      "aliases": ["/planear", "/design", "/arquitectura"],
+      "category": "lifecycle"
+    },
+    "/code": {
+      "workflow": "lifecycle/code.md",
+      "description": "Implementar código a partir de una especificación o requerimiento",
+      "aliases": ["/codigo", "/implement", "/build"],
+      "category": "lifecycle"
+    },
+    "/debug": {
+      "workflow": "lifecycle/debug.md",
+      "description": "Diagnosticar y corregir errores de forma sistemática",
+      "aliases": ["/depurar", "/fix", "/bug", "/error"],
+      "category": "lifecycle"
+    },
+    "/review": {
+      "workflow": "lifecycle/review.md",
+      "description": "Revisar código existente para calidad, seguridad y mejores prácticas",
+      "aliases": ["/revisar", "/audit", "/code-review"],
+      "category": "lifecycle"
+    },
+    "/sprint": {
+      "workflow": "sprint/stages/think.md",
+      "description": "Ciclo completo de sprint: Think → Plan → Build → Review → Test → Ship → Reflect",
+      "aliases": ["/sprint-cycle", "/pipeline", "/full-sprint"],
+      "category": "sprint"
+    }
+  },
+  "categories": {
+    "lifecycle": {
+      "name": "Lifecycle Workflows",
+      "description": "Flujos de trabajo estándar para el ciclo de vida del desarrollo"
+    },
+    "sprint": {
+      "name": "Sprint Pipeline",
+      "description": "Ciclo completo de sprint con 7 etapas conectadas y paso de artefactos entre etapas"
+    }
+  }
+}

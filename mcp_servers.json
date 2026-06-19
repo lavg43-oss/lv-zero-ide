@@ -1,0 +1,190 @@
+{
+  "mcpServers": {
+    "google_workspace": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp"],
+      "transport": "stdio",
+      "autoConnect": true,
+      "description": "Complete Google Workspace: Gmail, Calendar, Drive, Docs, Sheets, Slides, Meet, Chat, Forms, YouTube, Tasks, Contacts",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_PROJECT_ID": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000,
+        "method": "ping",
+        "maxFailures": 3
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "google_drive": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp", "--services", "drive"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Google Drive file management",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "gmail": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp", "--services", "gmail"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Gmail email management",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "google_docs": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp", "--services", "docs"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Google Docs document creation and editing",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "google_sheets": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp", "--services", "sheets"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Google Sheets spreadsheet management (Excel alternative)",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "google_slides": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp", "--services", "slides"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Google Slides presentation creation (PPT alternative)",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "google_calendar": {
+      "command": "npx",
+      "args": ["-y", "@pegasusheavy/google-mcp", "--services", "calendar"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Google Calendar event management",
+      "env": {
+        "GOOGLE_CLIENT_ID": "",
+        "GOOGLE_CLIENT_SECRET": "",
+        "GOOGLE_REFRESH_TOKEN": ""
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    },
+    "cloudflare_pages": {
+      "command": "npx",
+      "args": ["-y", "@cloudflare/mcp-server-cloudflare"],
+      "transport": "stdio",
+      "autoConnect": false,
+      "description": "Cloudflare Pages — Publicación 1-click. Límites gratuitos: 500 builds/mes, ancho de banda ilimitado, almacenamiento ilimitado",
+      "env": {
+        "CLOUDFLARE_API_TOKEN": "Cloudflare API token with Pages permissions (crear en https://dash.cloudflare.com/profile/api-tokens)",
+        "CLOUDFLARE_ACCOUNT_ID": "Your Cloudflare account ID (ver en dashboard.cloudflare.com)"
+      },
+      "healthCheck": {
+        "enabled": true,
+        "intervalMs": 60000,
+        "timeoutMs": 10000
+      },
+      "reconnect": {
+        "enabled": true,
+        "baseDelayMs": 2000,
+        "maxDelayMs": 30000,
+        "maxRetries": 5
+      }
+    }
+  }
+}

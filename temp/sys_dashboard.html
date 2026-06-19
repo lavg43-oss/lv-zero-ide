@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>lv-zero — System Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', -apple-system, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem;
+    }
+    .dashboard {
+      max-width: 800px;
+      width: 100%;
+      background: #161b22;
+      border-radius: 16px;
+      padding: 2.5rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      border: 1px solid #30363d;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #30363d;
+    }
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #58a6ff, #3fb950);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header .badge {
+      background: #21262d;
+      padding: 0.35rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      border: 1px solid #30363d;
+      color: #8b949e;
+    }
+    .timestamp {
+      text-align: right;
+      font-size: 0.75rem;
+      color: #8b949e;
+      margin-bottom: 1.5rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .card {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover {
+      border-color: #30363d;
+    }
+    .card.full-width {
+      grid-column: 1 / -1;
+    }
+    .card .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #8b949e;
+      margin-bottom: 0.5rem;
+    }
+    .card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    .card .sub {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-top: 0.25rem;
+    }
+    .bar-container {
+      margin-top: 0.75rem;
+      background: #21262d;
+      border-radius: 8px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 8px;
+      transition: width 0.5s ease;
+    }
+    .bar-green { background: linear-gradient(90deg, #3fb950, #2ea043); }
+    .bar-blue  { background: linear-gradient(90deg, #58a6ff, #1f6feb); }
+    .bar-orange { background: linear-gradient(90deg, #d29922, #bb8009); }
+    .specs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
+    }
+    .spec-tag {
+      background: #21262d;
+      padding: 0.25rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: #8b949e;
+      border: 1px solid #30363d;
+    }
+    .footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #30363d;
+      text-align: center;
+      font-size: 0.7rem;
+      color: #484f58;
+    }
+    .footer span {
+      color: #58a6ff;
+    }
+    @media (max-width: 600px) {
+      .dashboard { padding: 1.5rem; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Header -->
+    <div class="header">
+      <h1>⚡ lv-zero System Dashboard</h1>
+      <span class="badge">🟢 Live</span>
+    </div>
+
+    <!-- Timestamp -->
+    <div class="timestamp">
+      📡 Última actualización: <span id="ts">2026-05-12T03:46:00.847Z</span>
+    </div>
+
+    <!-- Grid -->
+    <div class="grid">
+      <!-- OS Card -->
+      <div class="card">
+        <div class="label">Sistema Operativo</div>
+        <div class="value" style="font-size: 1.2rem;">Windows 10</div>
+        <div class="sub">Build 19045 · x64</div>
+      </div>
+
+      <!-- Hostname Card -->
+      <div class="card">
+        <div class="label">Hostname</div>
+        <div class="value" style="font-size: 1.1rem;">DESKTOP-J1HQN76</div>
+        <div class="sub">Arquitectura: x64</div>
+      </div>
+
+      <!-- Uptime Card (full width) -->
+      <div class="card full-width">
+        <div class="label">⏱ Tiempo de Actividad (Uptime)</div>
+        <div class="value" style="color: #3fb950;">8d 19h 27m 16s</div>
+        <div class="sub">761,236 segundos · desde el 3 de mayo de 2026</div>
+      </div>
+
+      <!-- CPU Card -->
+      <div class="card full-width">
+        <div class="label">⚙️ CPU — Intel Core i5-4570 @ 3.20GHz</div>
+        <div class="value" style="color: #58a6ff;">34.35%</div>
+        <div class="sub">4 núcleos físicos</div>
+        <div class="bar-container">
+          <div class="bar-fill bar-blue" style="width: 34.35%;"></div>
+        </div>
+        <div class="specs">
+          <span class="spec-tag">4 Cores</span>
+          <span class="spec-tag">3.20 GHz</span>
+          <span class="spec-tag">Haswell</span>
+        </div>
+      </div>
+
+      <!-- Memory Card -->
+      <div class="card full-width">
+        <div class="label">💾 Memoria RAM</div>
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <div class="value" style="color: #d29922;">11.31 GB</div>
+          <div class="sub">de 15.91 GB total</div>
+        </div>
+        <div class="sub" style="margin-top: 0;">Libre: 4.6 GB · Usado: 71.07%</div>
+        <div class="bar-container">
+          <div class="bar-fill bar-orange" style="width: 71.07%;"></div>
+        </div>
+        <div class="specs">
+          <span class="spec-tag">💡 4.6 GB libres</span>
+          <span class="spec-tag">⚠️ 71% utilizado</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      Generado por <span>lv-zero</span> · <span>sys_inspector v1.0</span> · 
+      Examen de Graduación 🎓
+    </div>
+  </div>
+</body>
+</html>

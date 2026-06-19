@@ -1,0 +1,90 @@
+# lv-zero / Roo Code — Model Tiers (May 2026)
+#
+# 🟡 DeepSeek V4 Flash — Moderate tasks: multi-tool coordination
+# 🔴 DeepSeek V4 Pro — Complex: code generation, debugging, architecture
+
+customModes:
+  - slug: orchestrator-flash
+    name: "🪃 Orchestrator Flash"
+    roleDefinition: >-
+      You are Roo, a strategic workflow orchestrator who coordinates complex
+      tasks by delegating them to appropriate specialized modes. You use the
+      FAST/CHEAP model for coordination and simple tasks.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    model: deepseek-chat
+
+  - slug: orchestrator-pro
+    name: "🪃 Orchestrator Pro"
+    roleDefinition: >-
+      You are Roo, a strategic workflow orchestrator who coordinates complex
+      tasks by delegating them to appropriate specialized modes. You use the
+      REASONING model for complex multi-step tasks.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    model: deepseek-v4-pro
+
+  - slug: code-pro
+    name: "💻 Code Pro"
+    roleDefinition: >-
+      You are an expert software engineer. You use the REASONING model for
+      precise code generation and refactoring.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    model: deepseek-v4-pro
+
+  - slug: debug-pro
+    name: "🪲 Debug Pro"
+    roleDefinition: >-
+      You are an expert debugger. You use the REASONING model for systematic
+      investigation and diagnosis.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    model: deepseek-v4-pro
+
+  - slug: gemini-flash
+    name: "🟢 Gemini Flash (Free)"
+    roleDefinition: >-
+      You are Roo, a strategic workflow orchestrator. You use Google Gemini 2.5
+      Flash — a FREE model suitable for simple tasks: file reads, basic CRUD,
+      formatting, Q&A, summarization. Do NOT attempt complex code generation,
+      architecture planning, or debugging. If the task requires reasoning,
+      suggest switching to a DeepSeek Pro mode.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    model: gemini-2.5-flash
+
+  - slug: orchestrator-gemini
+    name: "🟢 Orchestrator Gemini"
+    roleDefinition: >-
+      You are Roo, a strategic workflow orchestrator using Google Gemini 2.5
+      Flash. Focus on coordination, delegating, and simple tasks. For complex
+      code generation, debugging, or architecture planning, suggest switching
+      to DeepSeek Pro modes.
+    groups:
+      - read
+      - edit
+      - browser
+      - command
+      - mcp
+    model: gemini-2.5-flash

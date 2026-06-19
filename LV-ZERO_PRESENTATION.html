@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lv-zero — Autonomous Agent Orchestrator</title>
+<link rel="icon" type="image/png" href="https://edkuesblaoafobezjkvs.supabase.co/storage/v1/object/public/logos/LOGOLV.png">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #1a1a25;
+    --bg4: #252535;
+    --border: #2a2a3d;
+    --text: #e8e8f0;
+    --text2: #9898b0;
+    --text3: #6868a0;
+    --accent: #6c5ce7;
+    --accent2: #a29bfe;
+    --accent3: #4a3fbf;
+    --green: #00e676;
+    --green-dim: #00c853;
+    --orange: #ff9100;
+    --red: #ff1744;
+    --cyan: #00e5ff;
+    --pink: #ff4081;
+    --yellow: #ffd740;
+    --gradient: linear-gradient(135deg, #6c5ce7, #a29bfe, #00e5ff);
+    --gradient2: linear-gradient(135deg, #00e676, #00e5ff, #6c5ce7);
+    --radius: 16px;
+    --radius-sm: 8px;
+  }
+
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Particle Background ── */
+  #particles {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .particle {
+    position: absolute;
+    width: 3px; height: 3px;
+    background: var(--accent2);
+    border-radius: 50%;
+    opacity: 0.15;
+    animation: float linear infinite;
+  }
+  @keyframes float {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 0.15; }
+    90% { opacity: 0.15; }
+    100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  /* ── Navigation ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  nav .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    font-size: 18px;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  nav .logo img { width: 22px; height: 22px; border-radius: 4px; }
+  nav .links { display: flex; gap: 6px; flex-wrap: wrap; }
+  nav .links a {
+    color: var(--text2);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    transition: all 0.2s;
+  }
+  nav .links a:hover { color: var(--text); background: var(--bg3); }
+
+  /* ── Sections ── */
+  section {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    padding: 100px 24px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .container {
+    max-width: 1100px;
+    width: 100%;
+  }
+
+  /* ── Hero ── */
+  #hero {
+    min-height: 100vh;
+    text-align: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  #hero::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(ellipse at 30% 50%, rgba(108,92,231,0.08), transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(0,229,255,0.06), transparent 60%);
+    animation: pulseBg 8s ease-in-out infinite alternate;
+  }
+  @keyframes pulseBg {
+    0% { transform: scale(1) rotate(0deg); }
+    100% { transform: scale(1.1) rotate(3deg); }
+  }
+  #hero .container { position: relative; z-index: 2; }
+  
+  .hero-badge {
+    display: inline-block;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    margin-bottom: 24px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .hero-badge .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulseDot 2s ease-in-out infinite;
+  }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .hero-title {
+    font-size: clamp(42px, 8vw, 96px);
+    font-weight: 900;
+    line-height: 1.05;
+    margin-bottom: 16px;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-sub {
+    font-size: clamp(16px, 2.5vw, 24px);
+    color: var(--text2);
+    max-width: 750px;
+    margin: 0 auto 40px;
+    font-weight: 300;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .hero-stat {
+    text-align: center;
+  }
+  .hero-stat .num {
+    font-size: 36px;
+    font-weight: 800;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-stat .label {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 2px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .scroll-indicator {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text3);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    animation: bounce 2s ease-in-out infinite;
+  }
+  .scroll-indicator .arrow {
+    width: 20px; height: 20px;
+    border-right: 2px solid var(--text3);
+    border-bottom: 2px solid var(--text3);
+    transform: rotate(45deg);
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(8px); }
+  }
+
+  /* ── Section Headers ── */
+  .section-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 800;
+    margin-bottom: 16px;
+    line-height: 1.15;
+  }
+  .section-desc {
+    font-size: 16px;
+    color: var(--text2);
+    max-width: 640px;
+    margin-bottom: 48px;
+    font-weight: 300;
+  }
+  .text-center { text-align: center; }
+  .mb-0 { margin-bottom: 0; }
+  .mb-24 { margin-bottom: 24px; }
+
+  /* ── Architecture Diagram ── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .arch-layer {
+    grid-column: 1 / -1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    position: relative;
+  }
+  .arch-layer .layer-tag {
+    position: absolute;
+    top: -10px;
+    left: 24px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 3px 12px;
+    border-radius: 10px;
+  }
+  .arch-layer h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .arch-layer p {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .arch-layer .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .arch-layer .tags span {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .arch-layer .tags span.accent {
+    background: rgba(108,92,231,0.15);
+    border-color: rgba(108,92,231,0.3);
+    color: var(--accent2);
+  }
+  .arch-layer .tags span.green {
+    background: rgba(0,230,118,0.1);
+    border-color: rgba(0,230,118,0.2);
+    color: var(--green);
+  }
+  .arch-layer .tags span.orange {
+    background: rgba(255,145,0,0.1);
+    border-color: rgba(255,145,0,0.2);
+    color: var(--orange);
+  }
+  .arch-layer .tags span.cyan {
+    background: rgba(0,229,255,0.1);
+    border-color: rgba(0,229,255,0.2);
+    color: var(--cyan);
+  }
+
+  .arch-arrow {
+    text-align: center;
+    color: var(--text3);
+    font-size: 20px;
+    padding: 4px 0;
+    grid-column: 1 / -1;
+  }
+
+  /* ── Cards Grid ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--gradient);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(108,92,231,0.1);
+  }
+  .card:hover::before { opacity: 1; }
+  .card .icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+  .card h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .card p {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .card .card-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+  }
+  .card .card-tag.native { background: rgba(0,230,118,0.1); color: var(--green); }
+  .card .card-tag.bridge { background: rgba(0,229,255,0.1); color: var(--cyan); }
+  .card .card-tag.core { background: rgba(108,92,231,0.15); color: var(--accent2); }
+  .card .card-tag.mcp { background: rgba(255,145,0,0.1); color: var(--orange); }
+
+  /* ── Skills Table ── */
+  .skills-table-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-top: 20px;
+  }
+  .skills-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .skills-table th {
+    text-align: left;
+    padding: 14px 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text3);
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+  }
+  .skills-table td {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .skills-table tr:hover td { background: var(--bg3); }
+  .skills-table .skill-name {
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+  .skills-table .skill-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+  }
+  .skill-badge.native { background: rgba(0,230,118,0.15); color: var(--green); }
+  .skill-badge.bridge { background: rgba(0,229,255,0.1); color: var(--cyan); }
+  .skill-badge.mcp { background: rgba(255,145,0,0.1); color: var(--orange); }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .feature-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: all 0.3s;
+  }
+  .feature-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 8px 30px rgba(108,92,231,0.08);
+  }
+  .feature-card .f-icon {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+  .feature-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .feature-card p {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .feature-card .f-stat {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 8px;
+    background: var(--bg3);
+    color: var(--text2);
+  }
+  .feature-card .f-stat.green { background: rgba(0,230,118,0.1); color: var(--green); }
+  .feature-card .f-stat.orange { background: rgba(255,145,0,0.1); color: var(--orange); }
+  .feature-card .f-stat.accent { background: rgba(108,92,231,0.1); color: var(--accent2); }
+
+  /* ── Pricing Cards ── */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .pricing-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s;
+    position: relative;
+  }
+  .pricing-card.featured {
+    border-color: var(--accent);
+    box-shadow: 0 0 30px rgba(108,92,231,0.1);
+  }
+  .pricing-card.featured::before {
+    content: '⭐ RECOMENDADO';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 3px 14px;
+    border-radius: 10px;
+  }
+  .pricing-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-3px);
+  }
+  .pricing-card .price {
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--text);
+    line-height: 1;
+  }
+  .pricing-card .price span {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--text3);
+  }
+  .pricing-card .p-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+    margin: 8px 0 4px;
+  }
+  .pricing-card .p-desc {
+    font-size: 11px;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+  .pricing-card .p-savings {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: rgba(0,230,118,0.1);
+    color: var(--green);
+  }
+
+  /* ── Reliability Section ── */
+  #reliability {
+    background: linear-gradient(180deg, var(--bg) 0%, rgba(0,230,118,0.02) 50%, var(--bg) 100%);
+  }
+  .reliability-showcase {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .reliability-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .reliability-card:hover {
+    border-color: var(--green);
+    box-shadow: 0 8px 30px rgba(0,230,118,0.06);
+  }
+  .reliability-card .big-num {
+    font-size: 56px;
+    font-weight: 900;
+    background: var(--gradient2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+  .reliability-card .big-label {
+    font-size: 14px;
+    color: var(--text2);
+    margin-top: 8px;
+    font-weight: 500;
+  }
+  .reliability-card .big-sub {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+  .reliability-timeline {
+    grid-column: 1 / -1;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+  }
+  .reliability-timeline h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .tl-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tl-item:last-child { border-bottom: none; }
+  .tl-item .tl-time {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text3);
+    min-width: 70px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .tl-item .tl-content {
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .tl-item .tl-content strong { color: var(--text); }
+  .tl-item .tl-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 4px;
+  }
+  .tl-dot.green { background: var(--green); box-shadow: 0 0 8px rgba(0,230,118,0.4); }
+  .tl-dot.orange { background: var(--orange); box-shadow: 0 0 8px rgba(255,145,0,0.4); }
+  .tl-dot.cyan { background: var(--cyan); box-shadow: 0 0 8px rgba(0,229,255,0.4); }
+  .tl-dot.accent { background: var(--accent); box-shadow: 0 0 8px rgba(108,92,231,0.4); }
+
+  /* ── Footer ── */
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 60px 24px;
+    border-top: 1px solid var(--border);
+    color: var(--text3);
+    font-size: 13px;
+  }
+  footer strong { color: var(--text2); }
+
+  /* ── Animations ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    nav .links { display: none; }
+    .arch-grid { grid-template-columns: 1fr; }
+    .reliability-showcase { grid-template-columns: 1fr; }
+    .hero-stats { gap: 20px; }
+    .hero-stat .num { font-size: 28px; }
+    section { padding: 80px 16px 40px; }
+    .skills-table { font-size: 12px; }
+    .skills-table th, .skills-table td { padding: 10px 12px; }
+  }
+
+  /* ── Glow effects ── */
+  .glow-line {
+    width: 60px; height: 4px;
+    background: var(--gradient);
+    border-radius: 4px;
+    margin: 0 auto 20px;
+  }
+
+  /* ── Build steps ── */
+  .build-steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .build-step {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .build-step:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .build-step .step-num {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--accent);
+    opacity: 0.3;
+  }
+  .build-step h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 6px 0 4px;
+  }
+  .build-step p {
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  /* ── Vision highlight ── */
+  .vision-box {
+    background: linear-gradient(135deg, rgba(108,92,231,0.08), rgba(0,229,255,0.05));
+    border: 1px solid rgba(108,92,231,0.2);
+    border-radius: var(--radius);
+    padding: 36px 32px;
+    margin-top: 24px;
+    text-align: center;
+  }
+  .vision-box h3 {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .vision-box p {
+    font-size: 14px;
+    color: var(--text2);
+    max-width: 600px;
+    margin: 0 auto;
+    font-weight: 300;
+  }
+
+  /* ── BYO Notice ── */
+  .byo-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255,145,0,0.08);
+    border: 1px solid rgba(255,145,0,0.2);
+    border-radius: var(--radius-sm);
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 13px;
+    color: var(--orange);
+  }
+  .byo-notice strong { color: var(--text); }
+
+  /* ── Monetization section ── */
+  .monetization-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .monetization-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .monetization-card .m-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+  }
+  .monetization-card h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .monetization-card p {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .monetization-card .m-tag {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+  }
+  .m-tag.high { background: rgba(255,64,129,0.1); color: var(--pink); }
+  .m-tag.med { background: rgba(255,145,0,0.1); color: var(--orange); }
+  .m-tag.low { background: rgba(0,229,255,0.1); color: var(--cyan); }
+
+  /* ── Research Data Table ── */
+  .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin: 20px 0;
+    font-size: 12px;
+  }
+  .data-table th {
+    background: var(--bg3);
+    color: var(--text);
+    font-weight: 600;
+    padding: 12px 14px;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--bg3); }
+  .data-table .highlight-row td {
+    background: rgba(108,92,231,0.08);
+    color: var(--accent2);
+    font-weight: 500;
+  }
+  .data-table .highlight-row td:first-child::before {
+    content: '► ';
+    color: var(--green);
+  }
+  .data-table .positive { color: var(--green); }
+  .data-table .negative { color: var(--red); }
+  .data-table .neutral { color: var(--orange); }
+  .data-source {
+    font-size: 11px;
+    color: var(--text3);
+    text-align: right;
+    margin-top: 4px;
+    font-style: italic;
+  }
+  .stat-highlight {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px 20px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+  .stat-highlight strong {
+    color: var(--green);
+    font-size: 18px;
+  }
+  .insight-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .insight-badge.market { background: rgba(108,92,231,0.15); color: var(--accent2); }
+  .insight-badge.price { background: rgba(0,230,118,0.15); color: var(--green); }
+  .insight-badge.behavior { background: rgba(255,145,0,0.15); color: var(--orange); }
+</style>
+</head>
+<body>
+
+<!-- ── Particles ── -->
+<div id="particles"></div>
+
+<!-- ── Nav ── -->
+<nav>
+  <div class="logo"><img src="https://edkuesblaoafobezjkvs.supabase.co/storage/v1/object/public/logos/LOGOLV.png" alt="lv-zero" /> lv-zero</div>
+  <div class="links">
+    <a href="#hero">Inicio</a>
+    <a href="#architecture">Arquitectura</a>
+    <a href="#engine">Motor</a>
+    <a href="#pricing">Costo Cero</a>
+    <a href="#skills">Skills</a>
+    <a href="#features">Features</a>
+    <a href="#monetization">💰</a>
+    <a href="#reliability">24/7</a>
+    <a href="#vision">Visión</a>
+  </div>
+</nav>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-badge"><span class="dot"></span> v4.0.0 — Open Source — Potenciada por DeepSeek</div>
+    <img src="https://edkuesblaoafobezjkvs.supabase.co/storage/v1/object/public/logos/LOGOLV.png" alt="lv-zero logo" style="width: 120px; height: auto; margin: 0 auto 20px; display: block; filter: drop-shadow(0 0 20px rgba(108,92,231,0.3));" />
+    <h1 class="hero-title">lv-zero</h1>
+    <p class="hero-sub">Haz con lv-zero lo mismo que harías con Claude Code o Antigravity — sin estar esclavizado a una suscripción mensual que solo deja usar sus propias APIs. <strong>En la versión libre, cualquier API compatible con OpenAI es bienvenida.</strong> En la versión gestionada, usamos la más económica y potente: <strong>DeepSeek</strong>.</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">38</div><div class="label">Skills</div></div>
+      <div class="hero-stat"><div class="num">0</div><div class="label">$ en suscripción</div></div>
+      <div class="hero-stat"><div class="num">24/7</div><div class="label">Uptime Probado</div></div>
+    </div>
+  </div>
+  <div class="scroll-indicator">
+    <span>Descubre</span>
+    <div class="arrow"></div>
+  </div>
+</section>
+
+<!-- ═══════════ ARCHITECTURE ═══════════ -->
+<section id="architecture">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Arquitectura</div>
+      <h2 class="section-title">Diseño en Capas</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">EventEmitter-based, interfaz desacoplada del motor, 38 skills integradas vía Function Calling. <strong>Tu Supabase, tus datos, tu control.</strong></p>
+    </div>
+
+    <div class="byo-notice reveal">
+      🔑 <strong>Bring Your Own Supabase:</strong> lv-zero no usa servidores centralizados. Cada usuario crea su proyecto Supabase gratis (plan gratuito: 500 MB, 50K filas) y configura sus propias credenciales en <code style="color: var(--text); font-family: 'JetBrains Mono', monospace;">.env</code>. Tus datos nunca salen de tu cuenta.
+    </div>
+
+    <div class="arch-grid reveal">
+      <!-- Layer 1: UI -->
+      <div class="arch-layer" style="border-color: rgba(0,229,255,0.2);">
+        <div class="layer-tag" style="background: var(--cyan);">Interfaz de Usuario</div>
+        <h3>GUI Electron + CLI</h3>
+        <p>Chat Panel, Skill Sidebar, Logic Inspector, modo terminal con readline+chalk. IPC Bridge vía preload.js para comunicación segura con el orquestador.</p>
+        <div class="tags">
+          <span class="cyan">Electron</span>
+          <span class="cyan">IPC</span>
+          <span class="cyan">Monaco Editor</span>
+          <span>CSS Variables</span>
+          <span>Toast System</span>
+        </div>
+      </div>
+
+      <div class="arch-arrow">▼</div>
+
+      <!-- Layer 2: Orchestrator -->
+      <div class="arch-layer" style="border-color: rgba(108,92,231,0.3);">
+        <div class="layer-tag">Orquestador</div>
+        <h3>EventEmitter — core/orchestrator.js</h3>
+        <p>Agent loop con streaming, exponential backoff retry (1s→2s→4s), fallback chain multi-provider, health check con auto-healing, crash recovery con checkpoint persistence, mode switching (5 modos).</p>
+        <div class="tags">
+          <span class="accent">agentLoop()</span>
+          <span class="accent">Fallback Chain</span>
+          <span class="accent">Crash Recovery</span>
+          <span>Health Check</span>
+          <span>Mode Switching</span>
+          <span>Auto-Memoria</span>
+        </div>
+      </div>
+
+      <div class="arch-arrow">▼</div>
+
+      <!-- Layer 3: Core Engine -->
+      <div class="arch-layer" style="border-color: rgba(0,230,118,0.2);">
+        <div class="layer-tag" style="background: var(--green-dim);">Motor Central</div>
+        <h3>LLM Client + Circuit Breaker + Tool Call Repair</h3>
+        <p>Cliente multi-provider con circuit breaker state machine (CLOSED/OPEN/HALF_OPEN), health tracking con degradación tras 3 fallos y auto-recuperación a los 5 min. Pipeline de 4 pasos para reparar tool calls malformadas.</p>
+        <div class="tags">
+          <span class="green">Circuit Breaker</span>
+          <span class="green">Provider Pool</span>
+          <span class="green">ToolCall Repair</span>
+          <span>CacheFirstLoop</span>
+          <span>Context Manager</span>
+          <span>State Manager</span>
+        </div>
+      </div>
+
+      <div class="arch-arrow">▼</div>
+
+      <!-- Layer 4: Skills -->
+      <div class="arch-layer" style="border-color: rgba(255,145,0,0.2);">
+        <div class="layer-tag" style="background: var(--orange);">Ecosistema de Skills</div>
+        <h3>7 Nativas + 29 Bridge + 1 MCP = 38 Skills</h3>
+        <p>Skills modulares, descubribles y componibles. Cada skill expone name, description, parameters y handler. Se convierten automáticamente en herramientas de Function Calling para DeepSeek.</p>
+        <div class="tags">
+          <span class="orange">Function Calling</span>
+          <span class="orange">Hot-Reload</span>
+          <span>Skill Factory</span>
+          <span>Skill Bridge</span>
+          <span>MCP Client</span>
+        </div>
+      </div>
+
+      <div class="arch-arrow">▼</div>
+
+      <!-- Layer 5: Persistence -->
+      <div class="arch-layer" style="border-color: rgba(255,64,129,0.15);">
+        <div class="layer-tag" style="background: var(--pink);">Persistencia (Tuya)</div>
+        <h3>Supabase (BYO) + Session + Checkpoints</h3>
+        <p>Memoria persistente en <strong>tu propio proyecto Supabase</strong> (tabla lvzero_memory) con embeddings vectoriales y búsqueda semántica. Sesiones guardadas en JSON local con checkpoint periódico cada 30s. Recuperación automática ante crashes. <strong>Sin servidores centralizados — 100% privado.</strong></p>
+        <div class="tags">
+          <span>Supabase (tuyo)</span>
+          <span>Embeddings</span>
+          <span>Checkpoints</span>
+          <span>Session Restore</span>
+          <span>Auto-Summary</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ ENGINE ═══════════ -->
+<section id="engine" style="background: linear-gradient(180deg, var(--bg) 0%, rgba(108,92,231,0.02) 50%, var(--bg) 100%);">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Motor</div>
+      <h2 class="section-title">Core Engine</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">Componentes críticos que mantienen el agente funcionando 24/7 sin supervisión. <strong>Optimizado para DeepSeek.</strong></p>
+    </div>
+
+    <div class="cards-grid reveal">
+      <div class="card">
+        <div class="card-tag core">Core</div>
+        <div class="icon">🔄</div>
+        <h3>Orchestrator</h3>
+        <p>3,420 líneas de EventEmitter. Agent loop con streaming, retry con backoff exponencial (3 intentos), fallback chain entre providers, health check cada 60s, checkpoint cada 30s, validación de mensajes, y abort handling.</p>
+      </div>
+      <div class="card">
+        <div class="card-tag core">Core</div>
+        <div class="icon">⚡</div>
+        <h3>Circuit Breaker</h3>
+        <p>State machine CLOSED→OPEN→HALF_OPEN. Failure threshold: 5. Open timeout: 60s. Eventos: circuit_open, circuit_half_open, circuit_closed. Stats con últimos 5 errores. Wrapping automático de providers.</p>
+      </div>
+      <div class="card">
+        <div class="card-tag core">Core</div>
+        <div class="icon">🧠</div>
+        <h3>LLM Client</h3>
+        <p>Multi-provider con soporte nativo para DeepSeek (reasoning_content en streams). Provider map con lazy init. Health tracking: degradación tras 3 fallos consecutivos, auto-recuperación a los 5 min.</p>
+      </div>
+      <div class="card">
+        <div class="card-tag core">Core</div>
+        <div class="icon">🔧</div>
+        <h3>Tool Call Repair</h3>
+        <p>Pipeline 4-pass: flatten (aplanar anidamiento), scavenge (recuperar llamadas perdidas), truncation (reparar JSON truncado), storm (StormBreaker — reparación agresiva con análisis de esquema).</p>
+      </div>
+      <div class="card">
+        <div class="card-tag core">Core</div>
+        <div class="icon">📦</div>
+        <h3>CacheFirstLoop</h3>
+        <p>Sistema de caché prefix-stable inspirado en Reasonix. AppendOnlyLog, ImmutablePrefix, VolatileScratch. Deduplicación de respuestas del LLM para evitar procesamiento redundante y ahorrar tokens.</p>
+      </div>
+      <div class="card">
+        <div class="card-tag core">Core</div>
+        <div class="icon">💾</div>
+        <h3>State Manager</h3>
+        <p>Persistencia de sesión en JSON. Save/restore/clear. Checkpoints automáticos. Recuperación ante crashes con detección de heartbeat stale (30s). Exportación de sesiones completas.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ PRICING ═══════════ -->
+<section id="pricing">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Costo Cero</div>
+      <h2 class="section-title">100% Gratuito. Potenciado por DeepSeek.</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">l​v-zero es software libre y open source. <strong>Sin suscripciones, sin cuentas premium, sin features bloqueadas.</strong> Solo necesitas una API key de DeepSeek y tu propio proyecto Supabase — y ya está todo listo para funcionar.</p>
+    </div>
+
+    <div class="pricing-grid reveal">
+      <div class="pricing-card">
+        <div class="price">$0</div>
+        <div class="p-name">lv-zero — Gratis</div>
+        <div class="p-desc">Software open source. Sin suscripciones. Sin cuentas premium. Sin features bloqueadas. Todo incluido. Fork, modifica, distribuye — es tuyo.</div>
+        <div class="p-savings">100% FREE</div>
+      </div>
+
+      <div class="pricing-card featured">
+        <div style="font-size: 48px; margin-bottom: 8px;">🧠</div>
+        <div class="p-name">DeepSeek</div>
+        <div class="p-desc">El motor de IA más potente y eficiente del mercado. lv-zero está construido nativamente sobre DeepSeek para ofrecerte razonamiento profundo al menor costo posible.</div>
+        <div class="p-savings">IA DE CLASE MUNDIAL</div>
+      </div>
+
+      <div class="pricing-card">
+        <div class="price">$0</div>
+        <div class="p-name">Supabase (BYO)</div>
+        <div class="p-desc">Tu propia base de datos PostgreSQL con plan gratuito. Checkpoints de memoria, embeddings vectoriales y búsqueda semántica — todo en tu cuenta, todo bajo tu control.</div>
+        <div class="p-savings">TUS DATOS</div>
+      </div>
+    </div>
+
+    <div class="byo-notice reveal" style="margin-top: 28px; max-width: 550px; margin-left: auto; margin-right: auto;">
+      🚀 <strong>Dos formas de usarlo:</strong> Descarga la versión libre en GitHub (tú pones tu API key) o usa la <a href="#monetization" style="color: var(--accent2); text-decoration: underline; text-underline-offset: 3px;">versión gestionada con saldo pre-cargado</a> — sin configuración, sin complicaciones.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ SKILLS ═══════════ -->
+<section id="skills" style="background: linear-gradient(180deg, var(--bg) 0%, rgba(0,229,255,0.015) 50%, var(--bg) 100%);">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Ecosistema</div>
+      <h2 class="section-title">36 Skills Integradas</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">9 nativas + 26 de proceso + 1 MCP. Todas se cargan como tools nativas con parámetros reales. <strong>Cada skill es una herramienta de IA que tu agente puede usar autónomamente.</strong></p>
+    </div>
+
+    <div class="skills-table-wrap reveal">
+      <table class="skills-table">
+        <thead>
+          <tr>
+            <th>Skill</th>
+            <th>Tipo</th>
+            <th>Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="skill-name">file_manager</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Leer, escribir, buscar, listar y eliminar archivos</td>
+          </tr>
+          <tr>
+            <td class="skill-name">internet_search</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Búsqueda híbrida Tavily → DuckDuckGo (respaldo soberano sin API key)</td>
+          </tr>
+          <tr>
+            <td class="skill-name">supabase_manager</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>SELECT, INSERT, UPDATE en Supabase</td>
+          </tr>
+          <tr>
+            <td class="skill-name">supabase_sql</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>SQL directo vía SERVICE_ROLE_KEY (DDL + DML completo)</td>
+          </tr>
+          <tr>
+            <td class="skill-name">shell_executor</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>CMD/PowerShell con blacklist autodestrucción, timeout 120s, quoting automático</td>
+          </tr>
+          <tr>
+            <td class="skill-name">skill_factory</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Creación dinámica de nuevas skills + hot-reload sin reinicio</td>
+          </tr>
+          <tr>
+            <td class="skill-name">skill_bridge</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Gestor de 26 habilidades de proceso (auto-save, skill-creator, code-review fusionados en skills nativas lv-zero)</td>
+          </tr>
+          <tr>
+            <td class="skill-name">auto_memoria</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Memoria persistente con embeddings DeepSeek + Supabase (TU proyecto)</td>
+          </tr>
+          <tr>
+            <td class="skill-name">graphify_knowledge</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Knowledge graph con 863 nodos, 1669 edges, queries semánticas</td>
+          </tr>
+          <tr>
+            <td class="skill-name">26× Skills de Proceso</td>
+            <td><span class="skill-badge native">Nativa</span></td>
+            <td>Orchestrator, debugging, spec gate, symphony, Trello sync, Telegram notify, verification gate, writing skills, etc.</td>
+          </tr>
+          <tr>
+            <td class="skill-name">MCP Client</td>
+            <td><span class="skill-badge mcp">MCP</span></td>
+            <td>Firecrawl, Playwright, Slidev, Document Processing, Casablanca</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FEATURES ═══════════ -->
+<section id="features">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Capacidades</div>
+      <h2 class="section-title">Características Clave</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">De la recuperación ante fallos a la memoria persistente — lv-zero está diseñado para producción real, no para demos.</p>
+    </div>
+
+    <div class="feature-grid reveal">
+      <div class="feature-card">
+        <div class="f-icon">🛡️</div>
+        <h4>Crash Recovery</h4>
+        <p>4 fases: state_manager persistence, checkpoint en agentLoop, crash detection en init (30s heartbeat stale), recovery UI con "Restaurar / Empezar de nuevo".</p>
+        <span class="f-stat green">4 fases implementadas</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🔄</div>
+        <h4>Multi-Provider Fallback</h4>
+        <p>Fallback chain automática entre tier 1 (deepseek), tier 2 (openai-compatible), tier 3 (mock). Construcción de contexto mínimo con advertencia al usuario.</p>
+        <span class="f-stat green">3 tiers</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">❤️</div>
+        <h4>Health Check Automático</h4>
+        <p>Cada 60s verifica: LLMClient readiness, provider degradation, cache loop consistency, skills not empty, stuck detection (3 fallos seguidos → abort graceful).</p>
+        <span class="f-stat green">Auto-healing</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🧠</div>
+        <h4>Auto-Memoria (BYOD)</h4>
+        <p>Checkpoint automático cada 20 mensajes, 6 tool calls o 12K chars. Embeddings vectoriales (768D) con búsqueda semántica. <strong>Datos en TU Supabase.</strong></p>
+        <span class="f-stat">Supabase + DeepSeek</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🔄</div>
+        <h4>Mode Switching Inteligente</h4>
+        <p>5 modos (orchestrator, architect, code, ask, debug) con detección automática por keywords en Español/Inglés. Timeout de 60s con auto-resume.</p>
+        <span class="f-stat">5 modos</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">📊</div>
+        <h4>Knowledge Graph</h4>
+        <p>Graphify integrado: 863 nodos, 1669 edges, 54 comunidades. Queries semánticas, path finding, explicación de nodos, diagramas de flujo Mermaid.</p>
+        <span class="f-stat orange">graphify-out/</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">📝</div>
+        <h4>Workflow System</h4>
+        <p>Ciclo de vida completo: plan → code → review → debug. Registry JSON con detección de comandos, resolución de intents, pasos con progreso.</p>
+        <span class="f-stat">4 fases lifecycle</span>
+      </div>
+      <div class="feature-card">
+        <div class="f-icon">🏗️</div>
+        <h4>Skill Factory (Hot-Reload)</h4>
+        <p>Crea nuevas habilidades en caliente sin reiniciar el sistema. El agente mismo puede extender sus capacidades durante la ejecución.</p>
+        <span class="f-stat accent">Auto-extensible</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ MONETIZATION / MODELO DE NEGOCIO ═══════════ -->
+<section id="monetization" style="background: linear-gradient(180deg, var(--bg) 0%, rgba(108,92,231,0.02) 50%, var(--bg) 100%);">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Dos Versiones</div>
+      <h2 class="section-title">Modelo de Negocio: Libre + Gestionada</h2>
+      <p class="section-desc" style="margin: 0 auto 12px;">Dos formas de usar lv-zero, dos públicos distintos. La versión libre para la comunidad open source que prefiere control total. La versión gestionada para quienes quieren que todo funcione sin configuración.</p>
+    </div>
+
+    <!-- Dos tarjetas de versiones -->
+    <div class="pricing-grid reveal" style="margin-top: 20px;">
+      <!-- Versión Libre -->
+      <div class="pricing-card" style="border: 1px solid rgba(0,229,255,0.2);">
+        <div style="font-size: 40px; margin-bottom: 4px;">🐙</div>
+        <div class="p-name" style="color: var(--accent);">Versión Libre — GitHub</div>
+        <div class="price" style="font-size: 32px;">$0</div>
+        <div class="p-desc" style="font-size: 13px;">
+          Para los que amamos el open source. Descargas el código, pones tu propia API key de DeepSeek, configuras tu Supabase personal — y tienes lv-zero completo funcionando.
+        </div>
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--text2); text-align: left; padding: 0 4px;">
+          <span>✅ <strong>Código abierto</strong> — fork, modifica, distribuye</span>
+          <span>✅ <strong>BYOK</strong> — tú controlas tu API key y datos</span>
+          <span>✅ <strong>Sin límites</strong> — úsalo cuanto quieras</span>
+          <span>✅ <strong>Sin registros</strong> — ni correo, ni cuenta, ni nada</span>
+        </div>
+        <div class="p-savings">OPEN SOURCE</div>
+      </div>
+
+      <!-- Versión Gestionada -->
+      <div class="pricing-card featured" style="transform: scale(1.03);">
+        <div style="font-size: 40px; margin-bottom: 4px;">☁️</div>
+        <div class="p-name" style="color: var(--accent2);">Versión Gestionada</div>
+        <div class="price" style="font-size: 28px;">Desde $5</div>
+        <div class="p-desc" style="font-size: 13px;">
+          Para los que no quieren complicarse. El creador ya configuró todo — solo pagas el saldo de API que vas a consumir. DeepSeek ya está integrada, lista para usar al instante.
+        </div>
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--text2); text-align: left; padding: 0 4px;">
+          <span>🚀 <strong>Plug & Play</strong> — sin configuración, sin setup</span>
+          <span>💰 <strong>$5 de recarga mínima</strong> — tú pagas, yo acredito tokens</span>
+          <span>⚡ <strong>Saldo en tokens DeepSeek</strong> — ~4,400 llamadas combinadas (Flash + Pro) por recarga</span>
+          <span>📊 <strong>Consumo monitoreado</strong> — ves cuánto gastas en tiempo real</span>
+        </div>
+        <div class="p-savings">SIN COMPLICACIONES</div>
+      </div>
+    </div>
+
+    <!-- Cómo funciona el modelo -->
+    <div class="reveal" style="margin-top: 36px;">
+      <div class="vision-box" style="border-color: rgba(0,230,118,0.2); background: linear-gradient(135deg, rgba(0,230,118,0.03), rgba(0,229,255,0.02));">
+        <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--accent2);">💡 Cómo Funciona el Modelo Gestionado</h3>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px; font-size: 13px; color: var(--text2);">
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="background: rgba(0,230,118,0.15); color: var(--accent2); width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0;">1</span>
+            <span>El usuario paga <strong>$5 USD como mínimo</strong> (vía la plataforma que se integre — Stripe, PayPal, cripto, etc.)</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="background: rgba(0,230,118,0.15); color: var(--accent2); width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0;">2</span>
+            <span>El sistema convierte esos $5 en <strong>tokens DeepSeek</strong> (~4,400 llamadas combinadas Flash + Pro) — el usuario <strong>nunca ve montos en dólares</strong>, solo ve su saldo en tokens</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="background: rgba(0,230,118,0.15); color: var(--accent2); width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0;">3</span>
+            <span>La recaudación se divide internamente: <strong>~40% va a tokens DeepSeek</strong> del usuario, el <strong>~60% restante</strong> cubre mi API key Pro, infraestructura y margen del servicio</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="background: rgba(0,230,118,0.15); color: var(--accent2); width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0;">4</span>
+            <span>El usuario <strong>consume sus tokens</strong> llamada por llamada. El sistema descuenta tokens reales del balance. Cuando se acerca a 0, recibe notificaciones para recargar</span>
+          </div>
+          <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span style="background: rgba(0,230,118,0.15); color: var(--accent2); width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; flex-shrink: 0;">5</span>
+            <span>Si el saldo llega a <strong>$0, el servicio se pausa automáticamente</strong> — sin cargos sorpresa, sin deudas. El usuario recarga cuando quiera y sigue desde donde se quedó</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plan de limitación de consumo -->
+    <div class="reveal" style="margin-top: 36px;">
+      <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; color: var(--text);">
+        <span class="insight-badge market">ARQUITECTURA TÉCNICA</span>
+        &nbsp;Plan de Limitación de Consumo
+      </h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+        <div class="monetization-card" style="text-align: left;">
+          <div class="m-icon">📊</div>
+          <h4>1. Sistema de Tracking por Usuario</h4>
+          <p>Cada usuario tiene un <strong>balance en Supabase</strong> (tabla <code>user_balances</code>): user_id, api_balance (decimal), last_deduction, created_at. Cada llamada a DeepSeek descuenta tokens reales consumidos del balance del usuario.</p>
+          <span class="m-tag high">CONTADOR EN DB</span>
+        </div>
+        <div class="monetization-card" style="text-align: left;">
+          <div class="m-icon">🛑</div>
+          <h4>2. Hard Cap de Balance</h4>
+          <p>Antes de cada llamada a la API, el sistema verifica: <code>user.balance > 0</code>. Si el balance es $0 o menor, la llamada se rechaza con <strong>"Saldo insuficiente — recarga para continuar"</strong>. Sin deuda, sin sobregiro.</p>
+          <span class="m-tag high">CORTE AUTOMÁTICO</span>
+        </div>
+        <div class="monetization-card" style="text-align: left;">
+          <div class="m-icon">📉</div>
+          <h4>3. Umbral de Alerta Temprana</h4>
+          <p>Cuando el balance baja de <strong>$0.30 USD</strong>, el sistema envía notificación al usuario: "Tu saldo está por agotarse. Quedan ~$X. Recarga para no interrumpir tu sesión." Segunda alerta a $0.10.</p>
+          <span class="m-tag high">ALERTAS</span>
+        </div>
+        <div class="monetization-card" style="text-align: left;">
+          <div class="m-icon">⏱️</div>
+          <h4>4. Rate Limiting por Usuario</h4>
+          <p>Límite de <strong>requests por minuto</strong> por usuario (configurable, default ~10 req/min). Esto evita que un solo usuario abuse el sistema y asegura recursos equitativos entre todos los usuarios gestionados.</p>
+          <span class="m-tag high">TOKEN BUCKET</span>
+        </div>
+        <div class="monetization-card" style="text-align: left;">
+          <div class="m-icon">🔐</div>
+          <h4>5. API Key Rotativa (Seguridad)</h4>
+          <p>La API key de DeepSeek no se expone al usuario. Se usa una <strong>key interna del servidor</strong> rotada periódicamente. El usuario nunca ve la key — solo consume su saldo. Esto previene fuga de keys y uso no autorizado.</p>
+          <span class="m-tag high">SEGURIDAD</span>
+        </div>
+        <div class="monetization-card" style="text-align: left;">
+          <div class="m-icon">🔄</div>
+          <h4>6. Persistencia de Sesión</h4>
+          <p>Si el usuario queda en medio de un flujo de trabajo cuando el saldo se agota, el <strong>checkpoint se guarda automáticamente</strong> en Supabase. Al recargar saldo, la sesión se restaura exactamente donde se quedó — sin perder contexto.</p>
+          <span class="m-tag high">SIN PÉRDIDA</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Costos reales con precios oficiales de DeepSeek -->
+    <div class="reveal" style="margin-top: 28px;">
+      <div class="vision-box" style="border-color: var(--border);">
+        <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text);">📐 Proyección del Modelo</h3>
+        <p style="font-size: 12px; color: var(--text2); margin-bottom: 12px; max-width: 650px;">
+          <strong>Cada recarga de $5 = ~4,400 llamadas DeepSeek</strong> (combinando 90% Flash + 10% Pro). Con uso moderado (~150 llamadas/día), eso es <strong>aproximadamente 1 mes de uso</strong>. Los montos en dólares son internos — el usuario solo ve su saldo en tokens.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+          <div class="stat-highlight" style="background: rgba(0,230,118,0.1); border-color: rgba(0,230,118,0.2);">
+            <span>💵 Usuario paga: <strong>$5</strong> → solo ve tokens</span>
+          </div>
+          <div class="stat-highlight" style="background: rgba(0,229,255,0.08); border-color: rgba(0,229,255,0.15);">
+            <span>⚡ Interno: <strong>~$2 en tokens</strong> (40% del pago)</span>
+          </div>
+          <div class="stat-highlight" style="background: rgba(108,92,231,0.08); border-color: rgba(108,92,231,0.15);">
+            <span>📈 Margen bruto: <strong>~60%</strong></span>
+          </div>
+          <div class="stat-highlight" style="background: rgba(255,145,0,0.08); border-color: rgba(255,145,0,0.15);">
+            <span>🔄 Usuarios recurren: <strong>~cada mes</strong></span>
+          </div>
+        </div>
+        <p style="font-size: 11px; color: var(--text2); margin-top: 10px; opacity: 0.7;">
+          ⚠️ <strong>Nota técnica:</strong> Precios basados en <a href="https://api-docs.deepseek.com/quick_start/pricing" target="_blank" style="color: var(--accent); text-decoration: underline;">tarifas oficiales DeepSeek</a>. deepseek-v4-flash: $0.14/M input, $0.28/M output. deepseek-v4-pro (75% descuento): $0.435/M input, $0.87/M output. <strong>El descuento del 75% en v4-pro expira el 31 de Mayo 2026</strong> — después los precios se multiplican ×4. Los modelos <code>deepseek-chat</code> y <code>deepseek-reasoner</code> están deprecados; lv-zero ya migra a <code>deepseek-v4-flash</code> y <code>deepseek-v4-pro</code>.
+        </p>
+      </div>
+    </div>
+
+    <!-- Estrategia -->
+    <div class="vision-box reveal" style="margin-top: 36px; border-color: var(--accent);">
+      <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 4px; color: var(--accent2);">🚀 Estrategia de Crecimiento</h3>
+      <p style="font-size: 13px; color: var(--text2); margin-bottom: 12px; max-width: 650px;">
+        Dos versiones, un mismo producto. La versión libre corre por su cuenta — la comunidad crece orgánicamente, el código mejora con cada fork y contribución. La versión gestionada genera ingresos recurrentes con márgenes saludables, y financia el desarrollo continuo de lv-zero para todos.
+      </p>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;">
+        <div class="stat-highlight" style="background: rgba(0,229,255,0.08); border-color: rgba(0,229,255,0.15);">
+          <span>🐙 <strong>Libre GitHub</strong> — Adopción global, contribuciones, ecosistema</span>
+        </div>
+        <div class="stat-highlight" style="background: rgba(0,230,118,0.08); border-color: rgba(0,230,118,0.15);">
+          <span>☁️ <strong>Gestionada</strong> — Ingresos recurrentes, usuarios no-técnicos</span>
+        </div>
+        <div class="stat-highlight" style="background: rgba(108,92,231,0.08); border-color: rgba(108,92,231,0.15);">
+          <span>🔄 <strong>Sincronía</strong> — Lo que mejora una, beneficia a la otra</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ RELIABILITY ═══════════ -->
+<section id="reliability">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">Resistencia</div>
+      <h2 class="section-title">24/7 — Sin Supervisión</h2>
+      <p class="section-desc" style="margin: 0 auto 32px;">lv-zero ha demostrado funcionar ininterrumpidamente durante más de 24 horas construyendo flujos, PWAs, conexiones y mapas — <strong>sin un solo crash</strong>. Las únicas pausas fueron por modificaciones externas, no por fallos del sistema.</p>
+    </div>
+
+    <div class="reliability-showcase reveal">
+      <div class="reliability-card">
+        <div class="big-num">24</div>
+        <div class="big-label">Horas Ininterrumpidas</div>
+        <div class="big-sub">Sin reinicios forzados</div>
+      </div>
+      <div class="reliability-card">
+        <div class="big-num">0</div>
+        <div class="big-label">Crashes</div>
+        <div class="big-sub">Zero fallos del sistema</div>
+      </div>
+
+      <div class="reliability-timeline">
+        <h4>📋 Bitácora de 24 Horas de Operación Continua</h4>
+        <div class="tl-item">
+          <div class="tl-dot green"></div>
+          <div class="tl-time">Hora 0</div>
+          <div class="tl-content"><strong>Inicio de sesión</strong> — Carga de contexto, conexión Supabase, inicialización de skills</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot cyan"></div>
+          <div class="tl-time">Hora 2</div>
+          <div class="tl-content"><strong>Construcción de flujos Node-RED</strong> — Generación de flujos complejos con conexiones entre nodos</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot green"></div>
+          <div class="tl-time">Hora 6</div>
+          <div class="tl-content"><strong>PWA scaffolding</strong> — Creación de Progressive Web App con service workers y manifest</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot cyan"></div>
+          <div class="tl-time">Hora 10</div>
+          <div class="tl-content"><strong>Mapas de código</strong> — Análisis estructural y generación de diagramas de dependencias</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot green"></div>
+          <div class="tl-time">Hora 14</div>
+          <div class="tl-content"><strong>Health check automático</strong> — Verificación de todos los subsistemas, todo operativo</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot cyan"></div>
+          <div class="tl-time">Hora 18</div>
+          <div class="tl-content"><strong>Conexiones a bases de datos</strong> — Consultas Supabase, PostgreSQL, memorias con embeddings</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot green"></div>
+          <div class="tl-time">Hora 22</div>
+          <div class="tl-content"><strong>Checkpoint de memoria</strong> — Resumen automático, compactación de historial</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot accent"></div>
+          <div class="tl-time">Hora 24+</div>
+          <div class="tl-content"><strong>Sigue funcionando</strong> — Sin degradación, sin memory leaks, sin intervención humana</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ VISION ═══════════ -->
+<section id="vision">
+  <div class="container">
+    <div class="text-center reveal">
+      <div class="section-label">La Visión</div>
+      <h2 class="section-title">¿Hacia Dónde Va lv-zero?</h2>
+      <p class="section-desc" style="margin: 0 auto 16px;">La meta no es "ser como Claude Code" o "ser como Antigravity". La meta es <strong>superarlos en lenguaje natural</strong>.</p>
+    </div>
+
+    <div class="vision-box reveal" style="margin-top: 0;">
+      <h3>🎯 lv-zero hará todo lo que Claude Code + Antigravity hacen — pero mejor y en lenguaje natural</h3>
+      <p style="margin-top: 12px;">
+        Mientras Claude Code usa XML blocks y Antigravity usa comandos estructurados, lv-zero entiende <strong>"haz una PWA que conecte a mi base de datos de alumnos y muestre sus calificaciones en tiempo real"</strong> — y lo hace. Sin aprender comandos, sin configuraciones complejas. Lenguaje natural, resultados reales.
+      </p>
+    </div>
+
+    <div class="build-steps reveal" style="margin-top: 32px;">
+      <div class="build-step">
+        <div class="step-num">01</div>
+        <h4>GUI Electron Completa</h4>
+        <p>Empaquetado como instalador .exe para Windows con auto-update. Experiencia de escritorio nativa.</p>
+      </div>
+      <div class="build-step">
+        <div class="step-num">02</div>
+        <h4>Plugin Marketplace</h4>
+        <p>Sistema de plugins descargables con versionado. La gente crea y vende skills especializadas.</p>
+      </div>
+      <div class="build-step">
+        <div class="step-num">03</div>
+        <h4>Multi-Agent Orquestation</h4>
+        <p>Agentes especializados trabajando en paralelo, comunicándose entre sí, delegando tareas automáticamente.</p>
+      </div>
+      <div class="build-step">
+        <div class="step-num">04</div>
+        <h4>Web Dashboard</h4>
+        <p>Interfaz web en tiempo real con WebSockets. Monitoreo remoto desde cualquier dispositivo.</p>
+      </div>
+      <div class="build-step">
+        <div class="step-num">05</div>
+        <h4>lv-zero Cloud</h4>
+        <p>Versión SaaS para quienes no quieren instalar nada. Plug-and-play, pago por uso o suscripción.</p>
+      </div>
+    </div>
+
+    <div class="vision-box reveal" style="margin-top: 24px; border-color: rgba(0,230,118,0.2); background: linear-gradient(135deg, rgba(0,230,118,0.05), rgba(0,229,255,0.03));">
+      <h3 style="background: var(--gradient2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">⚡ DeepSeek: La API más barata y poderosa</h3>
+      <p style="max-width: 650px;">
+        lv-zero está construido nativamente para DeepSeek porque es la única API que ofrece <strong>calidad de razonamiento profundo a precio de bolsillo</strong>: $0.14/1M tokens input vs Claude 3.5 Sonnet ($3.00/1M) = <strong>95% más barato</strong>. Esto significa que lv-zero puede ejecutar agentes autónomos 24/7 por lo que cuesta un café al mes.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <div style="max-width: 600px; margin: 0 auto;">
+    <p style="font-size: 28px; margin-bottom: 12px;">⚡</p>
+    <p style="font-weight: 600; margin-bottom: 4px;"><strong>lv-zero</strong> v4.0.0</p>
+    <p>Autonomous Agent Orchestrator · MIT License · Powered by DeepSeek + Electron + Supabase</p>
+    <p style="margin-top: 12px; font-size: 12px; color: var(--text3);">Open source. Sin suscripciones. Sin servers centralizados. Tu código, tu IA, tu control.</p>
+    <p style="margin-top: 16px; font-size: 11px;">Hecho con ❤️ y 24+ horas de uptime ininterrumpido</p>
+  </div>
+</footer>
+
+<script>
+  // ── Particles ──
+  (function() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 40; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.width = (Math.random() * 3 + 1) + 'px';
+      p.style.height = p.style.width;
+      p.style.animationDuration = (Math.random() * 20 + 15) + 's';
+      p.style.animationDelay = (Math.random() * 20) + 's';
+      container.appendChild(p);
+    }
+  })();
+
+  // ── Reveal on Scroll ──
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // ── Smooth nav scroll ──
+  document.querySelectorAll('nav a').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const id = a.getAttribute('href').slice(1);
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+</script>
+
+</body>
+</html>
