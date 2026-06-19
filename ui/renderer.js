@@ -7577,36 +7577,44 @@ ${currentFrameworks.length ? `
   async _saveApiKey() {
     const key = this.els.authInputKey?.value?.trim();
     if (!key) {
-      this._showAuthError("Please enter a valid DeepSeek API Key.");
+      this._showAuthError("Ingresa una API Key válida de DeepSeek.");
       return;
     }
     if (!key.startsWith("sk-")) {
-      this._showAuthError("API Key should start with 'sk-'");
+      this._showAuthError("La API Key debe empezar con 'sk-'");
       return;
     }
 
     // Disable button while saving
     if (this.els.authBtnSave) {
       this.els.authBtnSave.disabled = true;
-      this.els.authBtnSave.textContent = "⏳ Saving...";
+      this.els.authBtnSave.textContent = "⏳ Guardando...";
     }
     this.els.authError?.classList.add("hidden");
 
     try {
       const result = await window.lvzero["auth:saveKey"](key);
       if (!result || !result.success) {
-        this._showAuthError(result?.error || "Failed to save API key.");
+        this._showAuthError(result?.error || "Error al guardar la API Key.");
         if (this.els.authBtnSave) {
           this.els.authBtnSave.disabled = false;
-          this.els.authBtnSave.textContent = "Save & Start";
+          this.els.authBtnSave.textContent = "✅ Listo, ¡a crear!";
         }
+        return;
       }
-      // If success, the app will relaunch — nothing more to do
+
+      // ── Success: Show Step 2 (Quick Start) ──
+      const step1 = document.getElementById("onboarding-step-1");
+      const step2 = document.getElementById("onboarding-step-2");
+      if (step1) step1.classList.add("hidden");
+      if (step2) step2.classList.remove("hidden");
+
+      this.addLogEntry("success", "🔑 API Key guardada correctamente. ¡Bienvenido a lv-zero!");
     } catch (err) {
       this._showAuthError(`Error: ${err.message}`);
       if (this.els.authBtnSave) {
         this.els.authBtnSave.disabled = false;
-        this.els.authBtnSave.textContent = "Save & Start";
+        this.els.authBtnSave.textContent = "✅ Listo, ¡a crear!";
       }
     }
   }
@@ -8352,6 +8360,15 @@ ${currentFrameworks.length ? `
     if (this.els.authBtnSave) {
       this.els.authBtnSave.addEventListener("click", () => {
         this._saveApiKey();
+      });
+    }
+
+    // ── Onboarding: Close button (Step 2) ──
+    const onboardingCloseBtn = document.getElementById("onboarding-btn-close");
+    if (onboardingCloseBtn) {
+      onboardingCloseBtn.addEventListener("click", () => {
+        this._hideAuthModal();
+        this.addLogEntry("success", "🎉 ¡Bienvenido a lv-zero! Escribe tu idea en el chat para empezar.");
       });
     }
 
