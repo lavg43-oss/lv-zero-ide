@@ -33,7 +33,7 @@
     "pg": "^8.20.0",
     "playwright": "^1.60.0",
     "split.js": "^1.6.5",
-    "tsx": "^4.22.3"
+    "tsx": "^4.22.4"
   },
   "devDependencies": {
     "electron": "^33.4.11",
