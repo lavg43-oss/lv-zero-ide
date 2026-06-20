@@ -202,8 +202,7 @@ lv-zero-ide/
 │   └── main.js                   # Proceso principal Electron
 ├── skills/                       # Skills integradas (40+)
 │   ├── cloudflare_publish.js     # Publicación 1-click Cloudflare
-│   ├── loader/                   # Infraestructura de carga
-│   └── antigravity/              # Skills de proceso
+│   └── loader/                   # Infraestructura de carga
 ├── ui/                           # Interfaz de Electron
 │   ├── index.html                # UI principal
 │   ├── renderer.js               # Controlador de UI
