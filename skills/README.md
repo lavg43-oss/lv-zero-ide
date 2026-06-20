@@ -23,7 +23,7 @@ Cada **skill** es una función registrada que el agente puede invocar. Las skill
 | `supabase_manager` | [`supabase_manager.js`](supabase_manager.js) | Operaciones SELECT, INSERT, UPDATE en Supabase | ✅ Activa |
 | `shell_executor` | [`shell_executor.js`](shell_executor.js) | Ejecución de comandos en terminal con protecciones | ✅ Activa |
 | `skill_factory` | [`skill_factory.js`](skill_factory.js) | Creación dinámica de nuevas skills + hot-reload | ✅ Activa |
-| `skill_bridge` | [`skill_bridge.js`](skill_bridge.js) | Puente a 29 habilidades Antigravity (cero duplicación) | ✅ Activa |
+| `skill_bridge` | [`skill_bridge.js`](skill_bridge.js) | Puente a habilidades externas (cero duplicación) | ✅ Activa |
 | `supabase_sql` | [`supabase_sql.js`](supabase_sql.js) | SQL directo en Supabase via SERVICE_ROLE_KEY | ✅ Activa |
 | `build_slidev_deck` | [`build_slidev_deck.js`](build_slidev_deck.js) | Crea y gestiona presentaciones Slidev (Markdown + Vue.js + animaciones) | ✅ Activa |
 | `build_quarto_deck` | [`build_quarto_deck.js`](build_quarto_deck.js) | Crea y gestiona presentaciones Quarto/Reveal.js (científico-técnico) | ✅ Activa |
@@ -31,7 +31,7 @@ Cada **skill** es una función registrada que el agente puede invocar. Las skill
 
 ## Skills Puenteadas (29)
 
-El [`skill_bridge.js`](skill_bridge.js) carga dinámicamente 29 habilidades desde `C:\Users\LAVG\.gemini\antigravity\skills\`:
+El [`skill_bridge.js`](skill_bridge.js) carga dinámicamente habilidades desde directorios externos configurados.
 
 | # | Skill | Directorio |
 |---|-------|-----------|
@@ -65,7 +65,7 @@ El [`skill_bridge.js`](skill_bridge.js) carga dinámicamente 29 habilidades desd
 | 28 | visual-design-gate | `visual-design-gate` |
 | 29 | writing-skills | `writing-skills` |
 
-> **Cero duplicación**: Estas habilidades NO están copiadas en lv-zero. Se referencian por ruta absoluta. Cualquier actualización en Antigravity se refleja al instante.
+> **Cero duplicación**: Estas habilidades NO están copiadas en lv-zero. Se referencian por ruta absoluta.
 
 ---
 

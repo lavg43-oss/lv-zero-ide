@@ -56,7 +56,8 @@ Conecta y manipula:
 - 💬 **Google Meet, Chat, Forms, YouTube, Tasks, Contacts**
 
 ### 📂 Multi-Folder Workspace
-Trabaja con múltiples carpetas en un solo proyecto (estilo Antigravity IDE 2.0).
+Trabaja con múltiples carpetas en un solo proyecto. Ideal para proyectos que abarcan
+varios directorios (frontend, backend, shared, docs) en un solo contexto de agente.
 
 ### 🤖 Multi-Provider LLM
 - **DeepSeek** (principal) — Flash para velocidad, Pro para razonamiento

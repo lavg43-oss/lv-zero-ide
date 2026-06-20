@@ -1,9 +1,7 @@
 /**
  * ─── Workspace Manager for lv-zero ─────────────────────────────────────────
  *
- * Multi-folder project workspace support inspired by Antigravity IDE 2.0
- * and Google Gemini's projectResources system.
- *
+ * Multi-folder project workspace support.
  * Allows a single "project" to span multiple directories, each with its own
  * .env, PLAN.md, and file access policies.
  *
