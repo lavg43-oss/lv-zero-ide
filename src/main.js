@@ -347,6 +347,28 @@ function setupIPC() {
     const renderer = getGraphRenderer();
     return renderer.getGraphData();
   });
+
+  // ── 🐝 Swarm / Worker Pool ────────────────────────────────────────────
+
+  ipcMain.handle("swarm:status", () => {
+    const pool = orchestrator.workerPool;
+    if (!pool) return { active: false };
+    return pool.status;
+  });
+
+  ipcMain.handle("swarm:cancelTask", async (_event, taskId) => {
+    const pool = orchestrator.workerPool;
+    if (!pool) return { success: false, error: "Worker pool not available" };
+    return { success: pool.cancelTask(taskId) };
+  });
+
+  ipcMain.handle("swarm:shutdown", async () => {
+    const pool = orchestrator.workerPool;
+    if (pool) {
+      await pool.shutdown();
+    }
+    return { success: true };
+  });
 }
 
 // ─── Orchestrator Events → IPC Forwarding ──────────────────────────────────
@@ -397,6 +419,36 @@ function connectOrchestratorEvents() {
 
   orchestrator.on("skills_loaded", (data) => {
     mainWindow?.webContents.send("orchestrator:skills_loaded", data);
+  });
+
+  // ── 🐝 Swarm Events ──────────────────────────────────────────────────
+
+  orchestrator.on("swarm:start", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:start", data);
+  });
+
+  orchestrator.on("swarm:task_started", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:task_started", data);
+  });
+
+  orchestrator.on("swarm:task_progress", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:task_progress", data);
+  });
+
+  orchestrator.on("swarm:task_complete", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:task_complete", data);
+  });
+
+  orchestrator.on("swarm:task_error", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:task_error", data);
+  });
+
+  orchestrator.on("swarm:task_cancelled", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:task_cancelled", data);
+  });
+
+  orchestrator.on("swarm:complete", (data) => {
+    mainWindow?.webContents.send("orchestrator:swarm:complete", data);
   });
 
   orchestrator.on("ready", (data) => {

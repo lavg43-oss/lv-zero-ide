@@ -92,6 +92,8 @@ import {
 import { indexFile, indexFiles } from "../../skills/file_indexer.js";
 import { createMcpServer } from "../mcp_server.js";
 import { WorkspaceManager, getWorkspaceManager } from "../workspace_manager.js";
+import { WorkerPool, getWorkerPool } from "../workers/worker_pool.js";
+import { TaskAnalyzer } from "../workers/task_analyzer.js";
 import {
   sanitizeUserInput,
   sanitizeToolOutput,
@@ -276,6 +278,12 @@ class Orchestrator extends EventEmitter {
     this._discoveryDone = false;
     /** @type {boolean} Whether Discovery Phase is pending user answers */
     this._pendingDiscovery = false;
+
+    // ── Swarm Architecture (Background Agents) ──────────────────────────
+    /** @type {WorkerPool} Pool of background worker processes */
+    this.workerPool = getWorkerPool({ logger: this });
+    /** @type {boolean} Whether swarm mode is active */
+    this._swarmActive = false;
 
     // ── Prompt Security Module ──────────────────────────────────────────
     /** @type {object} Security middleware with preProcess/postProcess methods */
@@ -1691,6 +1699,57 @@ Rules:
     }
   }
 
+  // ─── Swarm Events ───────────────────────────────────────────────────────
+
+  /**
+   * Wires WorkerPool events to orchestrator events so the UI can display
+   * background agent progress in real-time.
+   */
+  _wireSwarmEvents() {
+    const pool = this.workerPool;
+
+    // Remove old listeners to avoid duplicates
+    pool.removeAllListeners("task:started");
+    pool.removeAllListeners("task:progress");
+    pool.removeAllListeners("task:complete");
+    pool.removeAllListeners("task:error");
+    pool.removeAllListeners("task:cancelled");
+
+    pool.on("task:started", ({ taskId, name }) => {
+      this.emit("swarm:task_started", { taskId, name });
+      this.emit("log", `   🐝 [${name}] iniciado`);
+    });
+
+    pool.on("task:progress", ({ taskId, name, progress, status, detail }) => {
+      this.emit("swarm:task_progress", { taskId, name, progress, status, detail });
+    });
+
+    pool.on("task:complete", ({ taskId, name, result, duration }) => {
+      this.emit("swarm:task_complete", { taskId, name, result, duration });
+      this.emit("log", `   ✅ [${name}] completado (${(duration / 1000).toFixed(1)}s)`);
+
+      // If all tasks are done, emit swarm complete
+      if (pool.queuedCount === 0 && pool.activeCount === 0) {
+        this._swarmActive = false;
+        this.emit("swarm:complete", {
+          totalTasks: pool.totalCreated,
+          completedTasks: pool.completedCount,
+          failedTasks: pool.totalCreated - pool.completedCount,
+        });
+        this.emit("log", `   🐝 Swarm completado: ${pool.completedCount}/${pool.totalCreated} tareas`);
+      }
+    });
+
+    pool.on("task:error", ({ taskId, name, error }) => {
+      this.emit("swarm:task_error", { taskId, name, error });
+      this.emit("warn", `   ⚠️ [${name}] error: ${error}`);
+    });
+
+    pool.on("task:cancelled", ({ taskId }) => {
+      this.emit("swarm:task_cancelled", { taskId });
+    });
+  }
+
   // ─── Agent Loop ───────────────────────────────────────────────────────
 
   /**
@@ -1895,6 +1954,56 @@ Rules:
 
     // Use sanitized input for the conversation
     const safeInput = sanitized;
+
+    // ── SWARM ARCHITECTURE: Detectar tareas paralelizables ─────────────
+    // Automatically detect if the user's request can be split into
+    // multiple background agents that work in parallel.
+    try {
+      const analysis = TaskAnalyzer.analyze(processedInput);
+      if (analysis.canParallelize && analysis.tasks.length >= 2) {
+        this._swarmActive = true;
+        this.emit("log", `   🐝 Swarm: ${analysis.reason}`);
+
+        // Emit swarm start event for UI
+        this.emit("swarm:start", {
+          reason: analysis.reason,
+          taskCount: analysis.tasks.length,
+          tasks: analysis.tasks.map((t) => ({
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            dependsOn: t.dependsOn,
+          })),
+        });
+
+        // Add each task to the worker pool
+        for (const task of analysis.tasks) {
+          this.workerPool.addTask(task);
+        }
+
+        // Wire worker pool events to orchestrator events (for UI)
+        this._wireSwarmEvents();
+
+        // Respond to user
+        const taskList = analysis.tasks
+          .map((t, i) => `  ${i + 1}. ${t.name}: ${t.description}`)
+          .join("\n");
+
+        const response = `🐝 **¡Claro!** Dividí tu solicitud en ${analysis.tasks.length} tareas que trabajaré en paralelo:\n\n${taskList}\n\nPuedes seguir escribiendo mientras los agentes trabajan en segundo plano. Te avisaré cuando terminen.`;
+
+        this.emit("response", response);
+        this.messages.push({ role: "user", content: safeInput });
+        this.cacheLoop.addUserMessage(safeInput);
+        trackMessage({ role: "user", content: safeInput });
+        this.messages.push({ role: "assistant", content: response });
+
+        // Don't enter the normal agent loop — the swarm handles it
+        this.isRunning = false;
+        return response;
+      }
+    } catch (err) {
+      this.emit("log", `   ⚠️ Swarm analysis: ${err.message}`);
+    }
 
     // Add user message to history (via cache loop for prefix stability)
     this.messages.push({ role: "user", content: safeInput });

@@ -315,6 +315,11 @@ const IPC_CHANNELS = {
   "graph:addFile": (filePath) => ipcRenderer.invoke("graph:addFile", filePath),
   "graph:removeFile": (filePath) => ipcRenderer.invoke("graph:removeFile", filePath),
   "graph:getData": () => ipcRenderer.invoke("graph:getData"),
+
+  // ── 🐝 Swarm / Worker Pool ────────────────────────────────────────────
+  "swarm:status": () => ipcRenderer.invoke("swarm:status"),
+  "swarm:cancelTask": (taskId) => ipcRenderer.invoke("swarm:cancelTask", taskId),
+  "swarm:shutdown": () => ipcRenderer.invoke("swarm:shutdown"),
 };
 
 // ─── Event Subscriptions ────────────────────────────────────────────────────
@@ -577,6 +582,62 @@ const EVENT_CHANNELS = {
     return () => ipcRenderer.removeListener("orchestrator:workspace_loaded", handler);
   },
 
+  // ── 🐝 Swarm Events ───────────────────────────────────────────────────
+
+  /**
+   * Escucha cuando el swarm de agentes inicia.
+   * @param {Function} callback - Recibe { reason, taskCount, tasks }
+   * @returns {Function} unsubscribe
+   */
+  onSwarmStart: (callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on("orchestrator:swarm:start", handler);
+    return () => ipcRenderer.removeListener("orchestrator:swarm:start", handler);
+  },
+
+  /**
+   * Escucha progreso de un agente en segundo plano.
+   * @param {Function} callback - Recibe { taskId, name, progress, status, detail }
+   * @returns {Function} unsubscribe
+   */
+  onSwarmTaskProgress: (callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on("orchestrator:swarm:task_progress", handler);
+    return () => ipcRenderer.removeListener("orchestrator:swarm:task_progress", handler);
+  },
+
+  /**
+   * Escucha cuando un agente se completa.
+   * @param {Function} callback - Recibe { taskId, name, result, duration }
+   * @returns {Function} unsubscribe
+   */
+  onSwarmTaskComplete: (callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on("orchestrator:swarm:task_complete", handler);
+    return () => ipcRenderer.removeListener("orchestrator:swarm:task_complete", handler);
+  },
+
+  /**
+   * Escucha cuando un agente falla.
+   * @param {Function} callback - Recibe { taskId, name, error }
+   * @returns {Function} unsubscribe
+   */
+  onSwarmTaskError: (callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on("orchestrator:swarm:task_error", handler);
+    return () => ipcRenderer.removeListener("orchestrator:swarm:task_error", handler);
+  },
+
+  /**
+   * Escucha cuando todo el swarm se completa.
+   * @param {Function} callback - Recibe { totalTasks, completedTasks, failedTasks }
+   * @returns {Function} unsubscribe
+   */
+  onSwarmComplete: (callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on("orchestrator:swarm:complete", handler);
+    return () => ipcRenderer.removeListener("orchestrator:swarm:complete", handler);
+  },
 };
 
 // ─── Expose to Renderer ─────────────────────────────────────────────────────
