@@ -2936,6 +2936,29 @@ textarea:focus {
   text-decoration: underline;
 }
 
+/* ── Auth Disclaimer ──────────────────────────────────────────────────── */
+
+.auth-disclaimer {
+  font-size: 11px;
+  color: var(--text-tertiary, #858585);
+  background: rgba(244, 71, 71, 0.08);
+  border: 1px solid rgba(244, 71, 71, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 16px 0;
+  text-align: left;
+  line-height: 1.4;
+}
+
+.auth-disclaimer a {
+  color: var(--accent-blue, #4fc1ff);
+  text-decoration: none;
+}
+
+.auth-disclaimer a:hover {
+  text-decoration: underline;
+}
+
 /* ── Onboarding Steps ─────────────────────────────────────────────────── */
 
 .onboarding-step {

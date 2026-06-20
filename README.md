@@ -1,7 +1,11 @@
 # lv-zero — Autonomous System Architect (Nivel Cero)
 
-> **Glass-box AI: Construye software mientras aprendes cómo funciona.**  
+> **Glass-box AI: Construye software mientras aprendes cómo funciona.**
 > Sin conocimientos de programación. 100% lenguaje natural. Open Source.
+
+> **⚠️ IMPORTANTE:** lv-zero es una herramienta de ASISTENCIA. Todo el código generado por IA
+> debe ser revisado antes de usarse en producción. Los autores no se hacen responsables por
+> el uso que se le dé al software. Ver [Términos de Uso](TERMS.md) y [Licencia MIT](LICENSE).
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js)](package.json)
