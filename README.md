@@ -11,6 +11,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js)](package.json)
 [![Electron](https://img.shields.io/badge/Electron-33%2B-47848F?logo=electron)](package.json)
 [![GitHub](https://img.shields.io/badge/GitHub-lvg43--oss%2Flv--zero--ide-blue?logo=github)](https://github.com/lavg43-oss/lv-zero-ide)
+[![GLM 5.2](https://img.shields.io/badge/GLM-5.2-8A2BE2)](https://bigmodel.cn)
 
 ---
 
