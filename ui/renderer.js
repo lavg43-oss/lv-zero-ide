@@ -80,6 +80,14 @@ class IDEController {
     this._currentSessionId = 'default';
     this._sessionCounter = 1;
 
+    // ── 🐝 Swarm State ──
+    this._swarmState = {
+      active: false,
+      tasks: [],
+      completedCount: 0,
+      totalCount: 0,
+    };
+
     // ── Project Management State ──
     this._project = {
       name: null,
@@ -295,6 +303,11 @@ class IDEController {
       previewFramework: document.getElementById("preview-framework"),
       btnPublish: document.getElementById("btn-publish"),
       editorMainArea: document.getElementById("editor-main-area"),
+      // ── 🐝 Swarm Panel ──
+      swarmPanel: document.getElementById("swarm-panel"),
+      swarmTasks: document.getElementById("swarm-tasks"),
+      swarmCount: document.getElementById("swarm-count"),
+      btnSwarmToggle: document.getElementById("btn-swarm-toggle"),
 
       // ── 🌐 Agent Browser Panel ──
       browserPanel: document.getElementById("browser-panel"),
@@ -7216,6 +7229,191 @@ ${currentFrameworks.length ? `
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // 🐝 SWARM AGENTS PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Called when the swarm starts — shows the panel with task list.
+   */
+  _onSwarmStart(data) {
+    this._swarmState.active = true;
+    this._swarmState.tasks = (data.tasks || []).map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description || '',
+      progress: 0,
+      status: 'queued',
+      detail: '⏳ En cola...',
+      elapsed: 0,
+      dependsOn: t.dependsOn || [],
+    }));
+    this._swarmState.totalCount = data.tasks?.length || 0;
+    this._swarmState.completedCount = 0;
+
+    // Show panel
+    if (this.els.swarmPanel) {
+      this.els.swarmPanel.classList.remove('hidden');
+    }
+    this._renderSwarmPanel();
+  }
+
+  /**
+   * Called when a task reports progress.
+   */
+  _onSwarmTaskProgress(data) {
+    const task = this._swarmState.tasks.find(t => t.id === data.taskId);
+    if (task) {
+      task.progress = data.progress || 0;
+      task.status = data.status || 'running';
+      task.detail = data.detail || task.detail;
+      this._renderSwarmTasks();
+    }
+  }
+
+  /**
+   * Called when a task completes successfully.
+   */
+  _onSwarmTaskComplete(data) {
+    const task = this._swarmState.tasks.find(t => t.id === data.taskId);
+    if (task) {
+      task.progress = 100;
+      task.status = 'completed';
+      task.detail = '✅ Completado';
+      this._swarmState.completedCount++;
+      this._renderSwarmTasks();
+    }
+    const duration = data.duration ? ` (${(data.duration / 1000).toFixed(1)}s)` : '';
+    this.addLogEntry('success', `🐝 ${data.name} completado${duration}`);
+  }
+
+  /**
+   * Called when a task fails.
+   */
+  _onSwarmTaskError(data) {
+    const task = this._swarmState.tasks.find(t => t.id === data.taskId);
+    if (task) {
+      task.status = 'failed';
+      task.detail = `❌ ${data.error || 'Error desconocido'}`;
+      this._renderSwarmTasks();
+    }
+    this.addLogEntry('error', `❌ ${data.name}: ${data.error}`);
+  }
+
+  /**
+   * Called when all swarm tasks are done.
+   */
+  _onSwarmComplete(data) {
+    const success = data.failedTasks === 0;
+    const msg = success
+      ? `🐝 Swarm completado: ${data.completedTasks}/${data.totalTasks} tareas exitosas`
+      : `🐝 Swarm completado: ${data.completedTasks} exitosas, ${data.failedTasks} fallidas`;
+
+    this.addLogEntry(success ? 'success' : 'warn', msg);
+
+    // Show summary in panel for 5 seconds, then hide
+    if (this.els.swarmTasks) {
+      const summaryClass = success ? 'success' : 'error';
+      this.els.swarmTasks.innerHTML = `
+        <div class="swarm-summary ${summaryClass}">
+          ${success ? '✅' : '⚠️'} ${msg}
+        </div>
+      `;
+    }
+
+    setTimeout(() => {
+      if (this.els.swarmPanel) {
+        this.els.swarmPanel.classList.add('hidden');
+      }
+      this._swarmState.active = false;
+    }, 5000);
+  }
+
+  /**
+   * Renders the full swarm panel (header + tasks).
+   */
+  _renderSwarmPanel() {
+    if (this.els.swarmCount) {
+      this.els.swarmCount.textContent = this._swarmState.tasks.length;
+    }
+    this._renderSwarmTasks();
+  }
+
+  /**
+   * Renders the task list inside the swarm panel.
+   */
+  _renderSwarmTasks() {
+    if (!this.els.swarmTasks) return;
+
+    const activeTasks = this._swarmState.tasks.filter(t => t.status !== 'completed' && t.status !== 'failed');
+    const completedTasks = this._swarmState.tasks.filter(t => t.status === 'completed' || t.status === 'failed');
+
+    // Update count
+    if (this.els.swarmCount) {
+      this.els.swarmCount.textContent = activeTasks.length;
+    }
+
+    // Render active tasks first, then completed
+    const allTasks = [...activeTasks, ...completedTasks];
+
+    this.els.swarmTasks.innerHTML = allTasks.map(task => {
+      const statusClass = task.status === 'completed' ? 'completed' :
+                          task.status === 'failed' ? 'failed' :
+                          task.status === 'running' ? 'running' : 'queued';
+      const progressStyle = `width: ${Math.max(task.progress || 0, 2)}%`;
+
+      return `
+        <div class="swarm-task" data-task-id="${task.id}">
+          <div class="swarm-task-header">
+            <span class="swarm-task-name">${this._escapeHtml(task.name)}</span>
+            <span class="swarm-task-status ${statusClass}">${task.status}</span>
+          </div>
+          <div class="swarm-progress-bar">
+            <div class="swarm-progress-fill ${statusClass}" style="${progressStyle}"></div>
+          </div>
+          <div class="swarm-task-detail">${this._escapeHtml(task.detail || '')}</div>
+          <div class="swarm-task-footer">
+            <span class="swarm-task-time">⏱️ ${this._formatElapsed(task.elapsed || 0)}</span>
+            ${task.status === 'running' ? `<button class="swarm-cancel-btn" data-task-id="${task.id}">⏹ Cancelar</button>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Bind cancel buttons
+    this.els.swarmTasks.querySelectorAll('.swarm-cancel-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.taskId;
+        if (window.lvzero['swarm:cancelTask']) {
+          window.lvzero['swarm:cancelTask'](taskId);
+        }
+      });
+    });
+  }
+
+  /**
+   * Simple HTML escaping.
+   */
+  _escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/"/g, '"');
+  }
+
+  /**
+   * Formats elapsed milliseconds to a readable string.
+   */
+  _formatElapsed(ms) {
+    if (!ms || ms < 0) return '0:00';
+    const totalSec = Math.floor(ms / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    return `${min}:${String(sec).padStart(2, '0')}`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // 🌐 AGENT BROWSER PANEL
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -8336,6 +8534,45 @@ ${currentFrameworks.length ? `
       this.els.btnPublish.addEventListener("click", async () => {
         await this._publishToCloudflare();
       });
+    }
+
+    // ── 🐝 Swarm: Toggle panel visibility ──
+    if (this.els.btnSwarmToggle) {
+      this.els.btnSwarmToggle.addEventListener("click", () => {
+        const tasksEl = this.els.swarmTasks;
+        if (tasksEl) {
+          const isHidden = tasksEl.style.display === "none";
+          tasksEl.style.display = isHidden ? "" : "none";
+          this.els.btnSwarmToggle.textContent = isHidden ? "−" : "+";
+        }
+      });
+    }
+
+    // ── 🐝 Swarm: Wire event listeners ──
+    if (window.lvzero?.events?.onSwarmStart) {
+      this._unsubscribers.push(window.lvzero.events.onSwarmStart((data) => {
+        this._onSwarmStart(data);
+      }));
+    }
+    if (window.lvzero?.events?.onSwarmTaskProgress) {
+      this._unsubscribers.push(window.lvzero.events.onSwarmTaskProgress((data) => {
+        this._onSwarmTaskProgress(data);
+      }));
+    }
+    if (window.lvzero?.events?.onSwarmTaskComplete) {
+      this._unsubscribers.push(window.lvzero.events.onSwarmTaskComplete((data) => {
+        this._onSwarmTaskComplete(data);
+      }));
+    }
+    if (window.lvzero?.events?.onSwarmTaskError) {
+      this._unsubscribers.push(window.lvzero.events.onSwarmTaskError((data) => {
+        this._onSwarmTaskError(data);
+      }));
+    }
+    if (window.lvzero?.events?.onSwarmComplete) {
+      this._unsubscribers.push(window.lvzero.events.onSwarmComplete((data) => {
+        this._onSwarmComplete(data);
+      }));
     }
 
     // ── 📋 Code Review: Review button on toolbar (Phase 5) ──

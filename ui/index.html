@@ -215,6 +215,19 @@
             </div>
           </div>
       </div>
+
+      <!-- ── 🐝 Swarm Agents Panel ── -->
+      <div id="swarm-panel" class="swarm-panel hidden">
+        <div class="swarm-header">
+          <span>🐝 Agentes Activos</span>
+          <span id="swarm-count" class="swarm-count">0</span>
+          <button id="btn-swarm-toggle" class="swarm-toggle-btn" title="Ocultar/Mostrar">−</button>
+        </div>
+        <div id="swarm-tasks" class="swarm-tasks">
+          <!-- Tasks rendered dynamically by renderer.js -->
+        </div>
+      </div>
+
       <!-- Mode Suggestion Banner (hidden by default) -->
       <div id="mode-suggestion-banner" class="mode-suggestion-banner hidden">
         <span id="mode-suggestion-text" class="mode-suggestion-text"></span>
