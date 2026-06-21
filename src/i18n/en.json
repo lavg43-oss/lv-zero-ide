@@ -1,0 +1,127 @@
+{
+  "app": {
+    "name": "lv-zero",
+    "tagline": "Glass-box AI: Build software while learning how it works",
+    "subtitle": "Nivel Cero — Autonomous System Architect"
+  },
+  "topbar": {
+    "view_menu": "View",
+    "new_terminal": "New Terminal",
+    "clear_conversation": "Clear Conversation"
+  },
+  "explorer": {
+    "title": "Explorer",
+    "search": "Search files...",
+    "loading": "Loading..."
+  },
+  "source_control": {
+    "title": "Source Control",
+    "empty": "Open a Git repository to see changes",
+    "refresh": "Refresh",
+    "auto_commit": "Auto-Commit"
+  },
+  "editor": {
+    "tabs": {}
+  },
+  "preview": {
+    "button": "Preview",
+    "start_server": "Start Server",
+    "stop_server": "Stop Server",
+    "reload": "Reload",
+    "url_placeholder": "http://localhost:3000"
+  },
+  "publish": {
+    "button": "Publish",
+    "deploying": "Deploying to Cloudflare Pages...",
+    "success": "Published! Share this link:",
+    "error": "Publish failed:"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "start": "Start"
+  },
+  "chat": {
+    "title": "AI Chat",
+    "input_placeholder": "Describe what you want to build...",
+    "send": "Send",
+    "new_session": "New Session",
+    "clear_memory": "Clear short-term memory",
+    "settings": "Settings"
+  },
+  "modes": {
+    "orchestrator": "Orchestrator",
+    "architect": "Architect",
+    "code": "Code",
+    "ask": "Ask",
+    "debug": "Debug"
+  },
+  "settings": {
+    "title": "Settings",
+    "auto_approve_edits": "Auto-approve file edits",
+    "auto_approve_edits_hint": "(Skip Diff)",
+    "auto_approve_terminal": "Auto-approve terminal execution",
+    "theme": "Theme",
+    "language": "Language",
+    "api_keys": "API Keys",
+    "providers": "AI Providers",
+    "providers_hint": "Configure the AI providers you want to use. Each requires its own API key. LV-Zero will use the first configured one."
+  },
+  "providers": {
+    "configured": "Configured",
+    "unconfigured": "No key",
+    "verify": "Verify",
+    "save": "Save",
+    "get_key": "Get key",
+    "enter_key": "Paste your API key here...",
+    "verifying": "Verifying...",
+    "connected": "Connected",
+    "saved": "Saved",
+    "error": "Error",
+    "no_providers": "No providers found",
+    "loading": "Loading providers..."
+  },
+  "swarm": {
+    "title": "Active Agents",
+    "cancel": "Cancel",
+    "completed": "Completed",
+    "failed": "Failed",
+    "queued": "Queued",
+    "running": "Running",
+    "summary_success": "Swarm completed: all tasks successful",
+    "summary_error": "Swarm completed with errors",
+    "no_tasks": "No active tasks"
+  },
+  "workspace": {
+    "title": "Workspace",
+    "add_folder": "Add folder",
+    "remove_folder": "Remove folder",
+    "no_workspace": "No active workspace"
+  },
+  "onboarding": {
+    "welcome": "Welcome!",
+    "step1_title": "Step 1: Connect your AI",
+    "step1_desc": "LV-Zero uses DeepSeek (a powerful and affordable AI). Enter your API Key to start. It's free to get one.",
+    "step2_title": "Ready! Try these commands:",
+    "cmd_website": "Create a personal website",
+    "cmd_facebook": "Make a Facebook clone",
+    "cmd_presentation": "Create a presentation",
+    "cmd_excel": "Analyze an Excel file and make a dashboard",
+    "get_key": "Don't have a key? Get one free here →",
+    "close": "Let's build!",
+    "disclaimer": "LV-Zero is an ASSISTANCE tool. AI-generated code should be reviewed before production use. By using this software, you accept the Terms of Use."
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "no_results": "No results",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Info"
+  }
+}

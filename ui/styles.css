@@ -3364,6 +3364,39 @@ textarea:focus {
   font-style: italic;
 }
 
+/* ═══ 🌐 Language Selector ═══ */
+
+.settings-language-row {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px 12px;
+}
+
+.lang-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-primary, #3c3c3c);
+  border-radius: 6px;
+  background: var(--bg-primary, #1e1e1e);
+  color: var(--text-secondary, #a0a0a0);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.lang-btn:hover {
+  border-color: var(--accent-blue, #4fc1ff);
+  color: var(--text-primary, #e0e0e0);
+}
+
+.lang-btn.active {
+  border-color: var(--accent-blue, #4fc1ff);
+  background: rgba(79, 193, 255, 0.1);
+  color: var(--accent-blue, #4fc1ff);
+  font-weight: 600;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    PROJECT MANAGEMENT
    ═══════════════════════════════════════════════════════════════════════════ */

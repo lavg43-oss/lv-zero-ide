@@ -6640,6 +6640,37 @@ ${currentFrameworks.length ? `
       });
     }
 
+    // ── 🌐 Language Selector ──
+    const btnLangEn = document.getElementById("btn-lang-en");
+    const btnLangEs = document.getElementById("btn-lang-es");
+
+    if (btnLangEn) {
+      btnLangEn.addEventListener("click", async () => {
+        btnLangEn.classList.add("active");
+        btnLangEs?.classList.remove("active");
+        localStorage.setItem("lv-zero-language", "en");
+        this._applyLanguage("en");
+        this.addLogEntry("info", "🌐 Language switched to English");
+      });
+    }
+
+    if (btnLangEs) {
+      btnLangEs.addEventListener("click", async () => {
+        btnLangEs.classList.add("active");
+        btnLangEn?.classList.remove("active");
+        localStorage.setItem("lv-zero-language", "es");
+        this._applyLanguage("es");
+        this.addLogEntry("info", "🌐 Idioma cambiado a Español");
+      });
+    }
+
+    // Load saved language preference
+    const savedLang = localStorage.getItem("lv-zero-language") || "en";
+    if (savedLang === "es") {
+      btnLangEn?.classList.remove("active");
+      btnLangEs?.classList.add("active");
+    }
+
     // ── Close modal via âœ• button ──
     if (this.els.settingsClose && this.els.settingsOverlay) {
       this.els.settingsClose.addEventListener("click", () => {

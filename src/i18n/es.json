@@ -1,0 +1,127 @@
+{
+  "app": {
+    "name": "lv-zero",
+    "tagline": "Glass-box AI: Construye software mientras aprendes cómo funciona",
+    "subtitle": "Nivel Cero — Autonomous System Architect"
+  },
+  "topbar": {
+    "view_menu": "Ver",
+    "new_terminal": "Nueva Terminal",
+    "clear_conversation": "Limpiar Conversación"
+  },
+  "explorer": {
+    "title": "Explorador",
+    "search": "Buscar archivos...",
+    "loading": "Cargando..."
+  },
+  "source_control": {
+    "title": "Control de Versiones",
+    "empty": "Abre un repositorio Git para ver cambios",
+    "refresh": "Actualizar",
+    "auto_commit": "Auto-Commit"
+  },
+  "editor": {
+    "tabs": {}
+  },
+  "preview": {
+    "button": "Vista Previa",
+    "start_server": "Iniciar Servidor",
+    "stop_server": "Detener Servidor",
+    "reload": "Recargar",
+    "url_placeholder": "http://localhost:3000"
+  },
+  "publish": {
+    "button": "Publicar",
+    "deploying": "Publicando en Cloudflare Pages...",
+    "success": "¡Publicado! Comparte este link:",
+    "error": "Error al publicar:"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "start": "Iniciar"
+  },
+  "chat": {
+    "title": "Chat IA",
+    "input_placeholder": "Describe lo que quieres construir...",
+    "send": "Enviar",
+    "new_session": "Nueva Sesión",
+    "clear_memory": "Limpiar memoria a corto plazo",
+    "settings": "Configuración"
+  },
+  "modes": {
+    "orchestrator": "Orquestador",
+    "architect": "Arquitecto",
+    "code": "Código",
+    "ask": "Preguntar",
+    "debug": "Depurar"
+  },
+  "settings": {
+    "title": "Configuración",
+    "auto_approve_edits": "Auto-aprobar ediciones",
+    "auto_approve_edits_hint": "(Saltar Diff)",
+    "auto_approve_terminal": "Auto-aprobar ejecución en terminal",
+    "theme": "Tema",
+    "language": "Idioma",
+    "api_keys": "API Keys",
+    "providers": "Proveedores de IA",
+    "providers_hint": "Configura los proveedores de IA que quieras usar. Cada uno requiere su propia API Key. LV-Zero usará el primero que encuentre configurado."
+  },
+  "providers": {
+    "configured": "Configurado",
+    "unconfigured": "Sin key",
+    "verify": "Verificar",
+    "save": "Guardar",
+    "get_key": "Obtener key",
+    "enter_key": "Pega tu API Key aquí...",
+    "verifying": "Verificando...",
+    "connected": "Conectado",
+    "saved": "Guardado",
+    "error": "Error",
+    "no_providers": "No se encontraron proveedores",
+    "loading": "Cargando proveedores..."
+  },
+  "swarm": {
+    "title": "Agentes Activos",
+    "cancel": "Cancelar",
+    "completed": "Completado",
+    "failed": "Fallido",
+    "queued": "En cola",
+    "running": "Ejecutando",
+    "summary_success": "Swarm completado: todas las tareas exitosas",
+    "summary_error": "Swarm completado con errores",
+    "no_tasks": "Sin tareas activas"
+  },
+  "workspace": {
+    "title": "Espacio de Trabajo",
+    "add_folder": "Agregar carpeta",
+    "remove_folder": "Eliminar carpeta",
+    "no_workspace": "Sin workspace activo"
+  },
+  "onboarding": {
+    "welcome": "¡Bienvenido!",
+    "step1_title": "Paso 1: Conecta tu IA",
+    "step1_desc": "LV-Zero usa DeepSeek (una IA poderosa y económica). Ingresa tu API Key para empezar. Es gratis obtener una.",
+    "step2_title": "¡Listo! Prueba estos comandos:",
+    "cmd_website": "Crea una página web personal",
+    "cmd_facebook": "Hazme un clon de Facebook",
+    "cmd_presentation": "Crea una presentación",
+    "cmd_excel": "Analiza un Excel y haz un dashboard",
+    "get_key": "¿No tienes una key? Obtén una gratis aquí →",
+    "close": "¡A crear!",
+    "disclaimer": "LV-Zero es una herramienta de ASISTENCIA. El código generado por IA debe ser revisado antes de usarse en producción. Al usar este software, aceptas los Términos de Uso."
+  },
+  "common": {
+    "loading": "Cargando...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "close": "Cerrar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "search": "Buscar",
+    "no_results": "Sin resultados",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información"
+  }
+}
