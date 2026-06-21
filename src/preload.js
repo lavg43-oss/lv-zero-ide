@@ -320,6 +320,11 @@ const IPC_CHANNELS = {
   "swarm:status": () => ipcRenderer.invoke("swarm:status"),
   "swarm:cancelTask": (taskId) => ipcRenderer.invoke("swarm:cancelTask", taskId),
   "swarm:shutdown": () => ipcRenderer.invoke("swarm:shutdown"),
+
+  // ── 🔌 Provider Configuration ──────────────────────────────────────────
+  "providers:list": () => ipcRenderer.invoke("providers:list"),
+  "providers:verify": (providerId, apiKey, baseURL) => ipcRenderer.invoke("providers:verify", providerId, apiKey, baseURL),
+  "providers:saveKey": (providerId, apiKey) => ipcRenderer.invoke("providers:saveKey", providerId, apiKey),
 };
 
 // ─── Event Subscriptions ────────────────────────────────────────────────────

@@ -284,6 +284,8 @@ class IDEController {
       apiKeyManager: document.getElementById("api-key-manager"),
       apiKeyList: document.getElementById("api-key-list"),
       apiKeyServiceSelect: document.getElementById("api-key-service-select"),
+      // ── 🔌 Provider Configuration ──
+      providerList: document.getElementById("provider-list"),
       apiKeyInput: document.getElementById("api-key-input"),
       apiKeyAddBtn: document.getElementById("api-key-add-btn"),
       apiKeyStatus: document.getElementById("api-key-status"),
@@ -6630,9 +6632,10 @@ ${currentFrameworks.length ? `
       this.els.chatSettingsBtn.addEventListener("click", () => {
         const isHidden = this.els.settingsOverlay.classList.contains("hidden");
         this.els.settingsOverlay.classList.toggle("hidden");
-        // Load API keys when settings modal opens
+        // Load API keys and providers when settings modal opens
         if (!isHidden) {
           this._loadApiKeys();
+          this._loadProviders();
         }
       });
     }
@@ -6879,6 +6882,149 @@ ${currentFrameworks.length ? `
     } catch (err) {
       statusEl.textContent = `❌ Error: ${err.message}`;
       statusEl.className = "api-key-status error";
+  }
+
+  // ── 🔌 Provider Configuration ──────────────────────────────────────────
+
+  /**
+   * Loads the provider list from the backend and renders it.
+   */
+  async _loadProviders() {
+    const listEl = this.els.providerList;
+    if (!listEl) return;
+
+    if (!window.lvzero["providers:list"]) {
+      listEl.innerHTML = '<div class="provider-loading">Provider config not available</div>';
+      return;
+    }
+
+    listEl.innerHTML = '<div class="provider-loading">Loading providers...</div>';
+
+    try {
+      const providers = await window.lvzero["providers:list"]();
+      if (!providers || providers.length === 0) {
+        listEl.innerHTML = '<div class="provider-loading">No providers found</div>';
+        return;
+      }
+
+      let html = "";
+      for (const p of providers) {
+        const statusClass = p.configured ? "configured" : "unconfigured";
+        const statusText = p.configured ? "✅ Configurado" : "❌ Sin key";
+        const modelsText = p.models.length > 0
+          ? p.models.slice(0, 5).join(", ") + (p.models.length > 5 ? "..." : "")
+          : "Modelo personalizado";
+
+        html += `
+          <div class="provider-item ${p.configured ? "configured" : ""}" data-provider="${this._escapeHtml(p.id)}">
+            <div class="provider-header">
+              <span class="provider-name">${this._escapeHtml(p.name)}</span>
+              <span class="provider-status ${statusClass}">${statusText}</span>
+            </div>
+            <div class="provider-models">${this._escapeHtml(modelsText)}</div>
+            <div class="provider-actions">
+              <input type="password" class="provider-key-input" placeholder="${p.configured ? "••••••••" : "Pega tu API Key aquí..."}" data-provider="${this._escapeHtml(p.id)}" />
+              <button class="provider-btn primary" data-action="verify" data-provider="${this._escapeHtml(p.id)}">Verificar</button>
+              <button class="provider-btn" data-action="save" data-provider="${this._escapeHtml(p.id)}">Guardar</button>
+              ${p.website ? `<a href="${this._escapeHtml(p.website)}" target="_blank" class="provider-link">🔑 Obtener key</a>` : ""}
+            </div>
+            ${p.notes ? `<div class="provider-notes">${this._escapeHtml(p.notes)}</div>` : ""}
+          </div>
+        `;
+      }
+
+      listEl.innerHTML = html;
+
+      // Bind verify buttons
+      listEl.querySelectorAll('[data-action="verify"]').forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const providerId = btn.dataset.provider;
+          const input = listEl.querySelector(`.provider-key-input[data-provider="${providerId}"]`);
+          const apiKey = input?.value?.trim() || "";
+          const item = listEl.querySelector(`.provider-item[data-provider="${providerId}"]`);
+          const statusEl = item?.querySelector(".provider-status");
+
+          if (!apiKey) {
+            if (statusEl) {
+              statusEl.textContent = "⚠️ Ingresa una key";
+              statusEl.className = "provider-status error";
+            }
+            return;
+          }
+
+          if (statusEl) {
+            statusEl.textContent = "⏳ Verificando...";
+            statusEl.className = "provider-status verifying";
+          }
+
+          try {
+            const result = await window.lvzero["providers:verify"](providerId, apiKey);
+            if (result.success) {
+              if (statusEl) {
+                statusEl.textContent = "✅ Conectado";
+                statusEl.className = "provider-status configured";
+              }
+              this.addLogEntry("success", `🔌 ${result.message}`);
+            } else {
+              if (statusEl) {
+                statusEl.textContent = `❌ ${result.error}`;
+                statusEl.className = "provider-status error";
+              }
+            }
+          } catch (err) {
+            if (statusEl) {
+              statusEl.textContent = `❌ Error: ${err.message}`;
+              statusEl.className = "provider-status error";
+            }
+          }
+        });
+      });
+
+      // Bind save buttons
+      listEl.querySelectorAll('[data-action="save"]').forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const providerId = btn.dataset.provider;
+          const input = listEl.querySelector(`.provider-key-input[data-provider="${providerId}"]`);
+          const apiKey = input?.value?.trim() || "";
+          const item = listEl.querySelector(`.provider-item[data-provider="${providerId}"]`);
+          const statusEl = item?.querySelector(".provider-status");
+
+          if (!apiKey) {
+            if (statusEl) {
+              statusEl.textContent = "⚠️ Ingresa una key";
+              statusEl.className = "provider-status error";
+            }
+            return;
+          }
+
+          try {
+            const result = await window.lvzero["providers:saveKey"](providerId, apiKey);
+            if (result.success) {
+              if (statusEl) {
+                statusEl.textContent = "✅ Guardado";
+                statusEl.className = "provider-status configured";
+              }
+              if (item) item.classList.add("configured");
+              input.value = "";
+              input.placeholder = "••••••••";
+              this.addLogEntry("success", `🔌 ${result.message}`);
+            } else {
+              if (statusEl) {
+                statusEl.textContent = `❌ ${result.error}`;
+                statusEl.className = "provider-status error";
+              }
+            }
+          } catch (err) {
+            if (statusEl) {
+              statusEl.textContent = `❌ Error: ${err.message}`;
+              statusEl.className = "provider-status error";
+            }
+          }
+        });
+      });
+
+    } catch (err) {
+      listEl.innerHTML = `<div class="provider-loading">Error: ${this._escapeHtml(err.message)}</div>`;
     }
   }
 

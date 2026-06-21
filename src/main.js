@@ -369,6 +369,114 @@ function setupIPC() {
     }
     return { success: true };
   });
+
+  // ── 🔌 Provider Configuration ──────────────────────────────────────────
+
+  ipcMain.handle("providers:list", async () => {
+    const { getAllProviders } = await import(
+      `file://${path.resolve(__dirname, "..", "src", "core", "provider_registry.js").replace(/\\/g, "/")}?t=${Date.now()}`
+    );
+    const providers = getAllProviders();
+    // Check which ones are configured
+    return providers.map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      baseURL: p.baseURL,
+      models: p.models,
+      website: p.website,
+      defaultModel: p.defaultModel,
+      envKey: p.envKey,
+      notes: p.notes,
+      configured: !!process.env[p.envKey],
+      supportsStreaming: p.supportsStreaming,
+      supportsReasoning: p.supportsReasoning,
+    }));
+  });
+
+  ipcMain.handle("providers:verify", async (_event, providerId, apiKey, baseURL) => {
+    const { getProviderById } = await import(
+      `file://${path.resolve(__dirname, "..", "src", "core", "provider_registry.js").replace(/\\/g, "/")}?t=${Date.now()}`
+    );
+    const provider = getProviderById(providerId);
+    if (!provider) return { success: false, error: `Provider "${providerId}" not found` };
+
+    const testURL = baseURL || provider.baseURL;
+    const testModel = provider.defaultModel;
+
+    try {
+      // Try a simple models list request to verify the API key works
+      const response = await fetch(`${testURL.replace(/\/+$/, "")}/models`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: true,
+          message: `✅ Conectado a ${provider.name}`,
+          models: data?.data?.map((m) => m.id || m.name) || [],
+        };
+      } else if (response.status === 401) {
+        return { success: false, error: "API Key inválida. Verifica que la key sea correcta." };
+      } else {
+        // Some providers don't support /models endpoint — try a simple chat completion
+        try {
+          const chatResponse = await fetch(`${testURL.replace(/\/+$/, "")}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: testModel,
+              messages: [{ role: "user", content: "ping" }],
+              max_tokens: 1,
+            }),
+          });
+
+          if (chatResponse.ok) {
+            return { success: true, message: `✅ Conectado a ${provider.name}`, models: [testModel] };
+          }
+
+          const errData = await chatResponse.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errData?.error?.message || `HTTP ${chatResponse.status}: ${chatResponse.statusText}`,
+          };
+        } catch (chatErr) {
+          return { success: false, error: `Error de conexión: ${chatErr.message}` };
+        }
+      }
+    } catch (err) {
+      return { success: false, error: `Error de conexión: ${err.message}` };
+    }
+  });
+
+  ipcMain.handle("providers:saveKey", async (_event, providerId, apiKey) => {
+    const { getProviderById } = await import(
+      `file://${path.resolve(__dirname, "..", "src", "core", "provider_registry.js").replace(/\\/g, "/")}?t=${Date.now()}`
+    );
+    const provider = getProviderById(providerId);
+    if (!provider) return { success: false, error: `Provider "${providerId}" not found` };
+
+    // Save to process.env for current session
+    process.env[provider.envKey] = apiKey;
+
+    // Also save to secret storage for persistence
+    try {
+      const { default: secretStorage } = await import(
+        `file://${path.resolve(__dirname, "..", "src", "secret_storage.js").replace(/\\/g, "/")}?t=${Date.now()}`
+      );
+      if (typeof secretStorage?.saveKey === "function") {
+        await secretStorage.saveKey(providerId, apiKey);
+      }
+    } catch {}
+
+    return { success: true, message: `✅ API Key guardada para ${provider.name}` };
+  });
 }
 
 // ─── Orchestrator Events → IPC Forwarding ──────────────────────────────────
