@@ -255,6 +255,7 @@ const SYSTEM_PROMPT = [
   "| guardar_recuerdo | Guarda recuerdos con b\u00fasqueda sem\u00e1ntica en Supabase |",
   "| buscar_recuerdo | Busca recuerdos guardados usando similitud sem\u00e1ntica |",
   "| auto_memoria | Memoria persistente: checkpoint autom\u00e1tico y restauraci\u00f3n de contexto |",
+  "| gbrain_think | \ud83e\udde0 S\u00edntesis con gap analysis \u2014 consulta memoria y produce respuestas con citas + \"lo que no s\u00e9\" |",
   "",
   "### \ud83c\udd94 Internet y Sistema",
   "",

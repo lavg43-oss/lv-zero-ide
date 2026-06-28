@@ -543,17 +543,17 @@
   </div>
 
   <!-- ═══ Onboarding / Auth Modal (Primer Uso — Bloqueante) ═══ -->
-  <div id="auth-overlay" class="auth-overlay">
+  <div id="auth-overlay" class="auth-overlay hidden">
     <div class="auth-modal">
-      <div class="auth-logo">lv-zero</div>
-      <div class="auth-subtitle">Nivel Cero — Autonomous System Architect</div>
+      <div class="auth-logo">LV-Zero</div>
+      <div class="auth-subtitle">Autonomous System Architect</div>
       <h1 class="auth-title">🚀 ¡Bienvenido!</h1>
       <p class="auth-description">
-        lv-zero es un asistente de IA que construye software con solo describírselo.
+        LV-Zero es un asistente de IA que construye software con solo describírselo.
         <strong>No necesitas saber programar.</strong>
       </p>
       <div class="auth-disclaimer">
-        ⚠️ lv-zero es una herramienta de ASISTENCIA. El código generado por IA
+        ⚠️ LV-Zero es una herramienta de ASISTENCIA. El código generado por IA
         debe ser revisado antes de usarse en producción. Al usar este software,
         aceptas los <a href="https://github.com/lavg43-oss/lv-zero-ide/blob/master/TERMS.md" target="_blank">Términos de Uso</a>.
       </div>
@@ -562,16 +562,80 @@
       <div id="onboarding-step-1" class="onboarding-step">
         <h3 class="onboarding-step-title">Paso 1: Conecta tu IA</h3>
         <p class="onboarding-step-desc">
-          lv-zero usa DeepSeek (una IA poderosa y económica).
-          Ingresa tu API Key para empezar. Es <strong>gratis</strong> obtener una.
+          Selecciona tu proveedor de IA, el modelo, e ingresa tu API Key.
+          <strong>Elige el que prefieras.</strong>
         </p>
         <div class="auth-input-group">
-          <label for="auth-input-key" class="auth-label">🔑 DeepSeek API Key</label>
+          <label for="auth-provider-select" class="auth-label">🏢 Proveedor</label>
+          <select id="auth-provider-select" class="auth-select" onchange="window._onProviderChange && window._onProviderChange()">
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="glm">GLM (Zhipu AI)</option>
+            <option value="qwen">Qwen (Alibaba Cloud)</option>
+            <option value="xai">xAI (Grok)</option>
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="together">Together AI</option>
+            <option value="nvidia">NVIDIA NIM</option>
+            <option value="fireworks">Fireworks AI</option>
+            <option value="custom">Custom URL</option>
+          </select>
+          <label for="auth-model-select" class="auth-label" style="margin-top:8px;">🤖 Modelo</label>
+          <select id="auth-model-select" class="auth-select">
+            <option value="deepseek-v4-flash" selected>deepseek-v4-flash</option>
+            <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+            <option value="deepseek-chat">deepseek-chat</option>
+            <option value="deepseek-reasoner">deepseek-reasoner</option>
+          </select>
+          <script>
+            // Inline fallback: populate models immediately when DOM is ready
+            // This runs BEFORE the renderer JS loads, so models are never empty
+            (function() {
+              var MODELS = {
+                deepseek: ["deepseek-v4-flash","deepseek-v4-pro","deepseek-chat","deepseek-reasoner"],
+                openai: ["gpt-4o","gpt-4o-mini","gpt-4.1","gpt-4.1-mini","o3","o3-mini","o4-mini"],
+                anthropic: ["claude-4-opus","claude-4-sonnet","claude-3.5-haiku"],
+                gemini: ["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"],
+                glm: ["glm-5.2","glm-5.2-ultra","glm-5.1","glm-4-plus"],
+                qwen: ["qwen-3-72b","qwen-3-32b","qwen-3-14b","qwen-3-7b","qwen-max","qwen-plus","qwen-turbo"],
+                xai: ["grok-3","grok-3-mini","grok-3-vision"],
+                groq: ["llama-4-70b","llama-4-8b","mixtral-8x7b","gemma-4-31b","gemma-4-9b"],
+                openrouter: ["openai/gpt-4o","openai/gpt-4o-mini","anthropic/claude-4-sonnet","google/gemini-2.5-flash","meta-llama/llama-4-70b","deepseek/deepseek-v4-flash","qwen/qwen-3-72b"],
+                together: ["meta-llama/llama-4-70b","deepseek-ai/deepseek-v3","mistralai/mistral-large","Qwen/Qwen3-72B"],
+                nvidia: ["nvidia/nemotron-3-super-120b","meta/llama-4-70b","mistralai/mistral-large"],
+                fireworks: ["accounts/fireworks/models/llama-v4-70b","accounts/fireworks/models/qwen3-72b"],
+                custom: []
+              };
+              var SEL = document.getElementById("auth-provider-select");
+              var MODEL_SEL = document.getElementById("auth-model-select");
+              if (SEL && MODEL_SEL) {
+                SEL.addEventListener("change", function() {
+                  var models = MODELS[this.value] || MODELS.deepseek;
+                  MODEL_SEL.innerHTML = "";
+                  if (models.length === 0) {
+                    var opt = document.createElement("option");
+                    opt.value = ""; opt.textContent = "Custom (escribe en .env)";
+                    MODEL_SEL.appendChild(opt);
+                  } else {
+                    for (var i = 0; i < models.length; i++) {
+                      var opt = document.createElement("option");
+                      opt.value = models[i]; opt.textContent = models[i];
+                      if (i === 0) opt.selected = true;
+                      MODEL_SEL.appendChild(opt);
+                    }
+                  }
+                });
+              }
+            })();
+          </script>
+          <label for="auth-input-key" class="auth-label" style="margin-top:8px;">🔑 API Key</label>
           <input
             id="auth-input-key"
             class="auth-input"
             type="password"
-            placeholder="sk-..."
+            placeholder="Pega tu API Key aquí..."
             autocomplete="off"
             spellcheck="false"
           />
@@ -579,8 +643,7 @@
         </div>
         <div id="auth-error" class="auth-error hidden"></div>
         <p class="auth-footer">
-          ¿No tienes una key?
-          <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">Obtén una gratis aquí →</a>
+          <span id="auth-footer-link">¿No tienes una key de DeepSeek? <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">Obtén una gratis aquí →</a></span>
         </p>
         <p class="auth-footer" style="margin-top: 8px; font-size: 11px;">
           💡 También puedes configurar un modelo local (Ollama, LM Studio) en el archivo <code>.env</code>

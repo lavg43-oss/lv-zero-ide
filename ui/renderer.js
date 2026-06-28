@@ -18,6 +18,9 @@
 
 class IDEController {
   constructor() {
+    // Expose _onProviderChange globally so the HTML onchange attribute can call it
+    window._onProviderChange = () => this._onProviderChange();
+
     // ── State ──
     this.ready = false;
     this.busy = false;
@@ -138,6 +141,12 @@ class IDEController {
     };
 
     this._cacheDom();
+
+    // ── Auth Guard: Check if any API key is configured FIRST ──
+    // Must run BEFORE _bindUIEvents and _connectEvents to prevent
+    // the auth modal from showing when keys already exist.
+    this._checkApiKeys();
+
     this._bindUIEvents();
 
     // ── Message Queue (Feature 3) ──
@@ -328,6 +337,9 @@ class IDEController {
       authInputKey: document.getElementById("auth-input-key"),
       authBtnSave: document.getElementById("auth-btn-save"),
       authError: document.getElementById("auth-error"),
+      authProviderSelect: document.getElementById("auth-provider-select"),
+      authModelSelect: document.getElementById("auth-model-select"),
+      authFooterLink: document.getElementById("auth-footer-link"),
       // ── Project Management ──
       projectHeader: document.querySelector("#panel-explorer .panel-header > span:first-child"),
       btnMapaProyecto: document.getElementById("btn-mapa-proyecto"),
@@ -6406,14 +6418,10 @@ ${currentFrameworks.length ? `
     }
 
     // ── Auth Guard (Fase 5) ──────────────────────────────────────────────
-    // When the main process tells us there's no API key, show the blocking modal
-    if (events.onAuthRequireKey) {
-      const unsubAuth = events.onAuthRequireKey(({ message }) => {
-        this.addLogEntry("info", `🔑 ${message || "API key required"}`);
-        this._showAuthModal();
-      });
-      this.unsubscribers.push(unsubAuth);
-    }
+    // DISABLED: The event auth:requireKey is never sent by our code (confirmed by
+    // full codebase search). It appears to come from node_modules or Electron runtime.
+    // Auth checking is now handled by _checkApiKeys() called at init() time.
+    // if (events.onAuthRequireKey) { ... }
 
     // ── Terminal Shell Changed Event ──────────────────────────────────────
     if (events.onTerminalShellChanged) {
@@ -6913,6 +6921,7 @@ ${currentFrameworks.length ? `
     } catch (err) {
       statusEl.textContent = `❌ Error: ${err.message}`;
       statusEl.className = "api-key-status error";
+    }
   }
 
   // ── 🔌 Provider Configuration ──────────────────────────────────────────
@@ -7742,6 +7751,42 @@ ${currentFrameworks.length ? `
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
+   * Check if any API key is configured by asking the main process.
+   * Shows the auth modal only if NO keys are found.
+   * Uses secrets:list (available in main.cjs — the actual entry point).
+   */
+  async _checkApiKeys() {
+    try {
+      let hasKey = false;
+
+      // 1. Check SecretStorage (encrypted DB) for saved keys
+      if (window.lvzero["secrets:list"]) {
+        const result = await window.lvzero["secrets:list"]();
+        if (result && result.success && result.services && result.services.length > 0) {
+          hasKey = true;
+        }
+      }
+
+      // 2. Also check providers:list which reads process.env (covers .env file keys)
+      if (!hasKey && window.lvzero["providers:list"]) {
+        const providers = await window.lvzero["providers:list"]();
+        if (providers && providers.length > 0) {
+          hasKey = providers.some((p) => p.configured);
+        }
+      }
+
+      if (!hasKey) {
+        this.addLogEntry("info", "🔑 No API keys configured — showing setup");
+        this._showAuthModal();
+      } else {
+        this.addLogEntry("info", "🔑 API key(s) found");
+      }
+    } catch (err) {
+      console.warn("[IDE] Auth check failed:", err.message);
+    }
+  }
+
+  /**
    * Show the blocking auth modal (full-screen overlay).
    * Called when main process reports no API key is stored.
    */
@@ -7751,6 +7796,8 @@ ${currentFrameworks.length ? `
     this.els.authInputKey?.focus();
     this.els.authError?.classList.add("hidden");
     this._updateBadge("initializing", "🔑 API Key required");
+    // Initialize provider + model dropdowns (always, even if DOM wasn't cached)
+    this._onProviderChange();
   }
 
   /**
@@ -7946,51 +7993,112 @@ ${currentFrameworks.length ? `
   }
 
   /**
+   * Provider → model mapping for the auth modal dropdowns.
+   */
+  _getProviderModels() {
+    return {
+      deepseek: { name: "DeepSeek", models: ["deepseek-v4-flash","deepseek-v4-pro","deepseek-chat","deepseek-reasoner"], envKey: "DEEPSEEK_API_KEY", url: "https://platform.deepseek.com/api_keys", keyPrefix: "sk-" },
+      openai: { name: "OpenAI", models: ["gpt-4o","gpt-4o-mini","gpt-4.1","gpt-4.1-mini","o3","o3-mini","o4-mini"], envKey: "OPENAI_API_KEY", url: "https://platform.openai.com/api-keys", keyPrefix: "sk-" },
+      anthropic: { name: "Anthropic Claude", models: ["claude-4-opus","claude-4-sonnet","claude-3.5-haiku"], envKey: "ANTHROPIC_API_KEY", url: "https://console.anthropic.com", keyPrefix: "sk-ant-" },
+      gemini: { name: "Google Gemini", models: ["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"], envKey: "GEMINI_API_KEY", url: "https://aistudio.google.com/apikey", keyPrefix: "" },
+      glm: { name: "GLM (Zhipu AI)", models: ["glm-5.2","glm-5.2-ultra","glm-5.1","glm-4-plus"], envKey: "GLM_API_KEY", url: "https://bigmodel.cn", keyPrefix: "" },
+      qwen: { name: "Qwen (Alibaba Cloud)", models: ["qwen-3-72b","qwen-3-32b","qwen-3-14b","qwen-3-7b","qwen-max","qwen-plus","qwen-turbo"], envKey: "QWEN_API_KEY", url: "https://bailian.console.aliyun.com", keyPrefix: "sk-" },
+      xai: { name: "xAI (Grok)", models: ["grok-3","grok-3-mini","grok-3-vision"], envKey: "XAI_API_KEY", url: "https://console.x.ai", keyPrefix: "" },
+      groq: { name: "Groq", models: ["llama-4-70b","llama-4-8b","mixtral-8x7b","gemma-4-31b","gemma-4-9b"], envKey: "GROQ_API_KEY", url: "https://console.groq.com/keys", keyPrefix: "gsk_" },
+      openrouter: { name: "OpenRouter", models: ["openai/gpt-4o","openai/gpt-4o-mini","anthropic/claude-4-sonnet","google/gemini-2.5-flash","meta-llama/llama-4-70b","deepseek/deepseek-v4-flash","qwen/qwen-3-72b"], envKey: "OPENROUTER_API_KEY", url: "https://openrouter.ai/keys", keyPrefix: "sk-or-" },
+      together: { name: "Together AI", models: ["meta-llama/llama-4-70b","deepseek-ai/deepseek-v3","mistralai/mistral-large","Qwen/Qwen3-72B"], envKey: "TOGETHER_API_KEY", url: "https://together.ai/api-keys", keyPrefix: "" },
+      nvidia: { name: "NVIDIA NIM", models: ["nvidia/nemotron-3-super-120b","meta/llama-4-70b","mistralai/mistral-large"], envKey: "NVIDIA_API_KEY", url: "https://build.nvidia.com", keyPrefix: "nvapi-" },
+      fireworks: { name: "Fireworks AI", models: ["accounts/fireworks/models/llama-v4-70b","accounts/fireworks/models/qwen3-72b"], envKey: "FIREWORKS_API_KEY", url: "https://fireworks.ai/api-keys", keyPrefix: "" },
+      custom: { name: "Custom URL", models: [], envKey: "CUSTOM_API_KEY", url: "", keyPrefix: "" },
+    };
+  }
+
+  /**
+   * Updates the model dropdown and footer link when provider changes.
+   */
+  _onProviderChange() {
+    const providers = this._getProviderModels();
+    // Get fresh references each time (in case DOM wasn't ready during _cacheDom)
+    const sel = this.els.authProviderSelect || document.getElementById("auth-provider-select");
+    const modelSel = this.els.authModelSelect || document.getElementById("auth-model-select");
+    const link = this.els.authFooterLink || document.getElementById("auth-footer-link");
+    if (!sel) { console.warn("[Auth] provider select not found"); return; }
+    if (!modelSel) { console.warn("[Auth] model select not found"); return; }
+    const pid = sel.value;
+    const p = providers[pid];
+    if (!p) { console.warn("[Auth] unknown provider:", pid); return; }
+    // Update models dropdown
+    modelSel.innerHTML = "";
+    if (p.models.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = ""; opt.textContent = "Custom (escribe en .env)";
+      modelSel.appendChild(opt);
+    } else {
+      for (const m of p.models) {
+        const opt = document.createElement("option");
+        opt.value = m; opt.textContent = m;
+        if (m === p.models[0]) opt.selected = true;
+        modelSel.appendChild(opt);
+      }
+    }
+    // Update footer link
+    if (link) {
+      link.innerHTML = p.url
+        ? `¿No tienes una key de ${p.name}? <a href="${p.url}" target="_blank" rel="noopener">Obtén una gratis aquí →</a>`
+        : `Configura tu API Key de ${p.name} en su sitio web.`;
+    }
+    // Update placeholder
+    const input = this.els.authInputKey || document.getElementById("auth-input-key");
+    if (input) input.placeholder = p.keyPrefix ? `Ej: ${p.keyPrefix}...` : "Pega tu API Key aquí...";
+  }
+
+  /**
    * Save the API key via IPC and restart the app logic engine.
-   * The main process handles app.relaunch() after saving.
    */
   async _saveApiKey() {
+    const providers = this._getProviderModels();
+    const pid = this.els.authProviderSelect?.value || "deepseek";
+    const p = providers[pid] || providers.deepseek;
+    const model = this.els.authModelSelect?.value || p.models[0] || "";
     const key = this.els.authInputKey?.value?.trim();
+
     if (!key) {
-      this._showAuthError("Ingresa una API Key válida de DeepSeek.");
+      this._showAuthError(`Ingresa una API Key válida de ${p.name}.`);
       return;
     }
-    if (!key.startsWith("sk-")) {
-      this._showAuthError("La API Key debe empezar con 'sk-'");
+    if (p.keyPrefix && !key.startsWith(p.keyPrefix)) {
+      this._showAuthError(`La API Key de ${p.name} debe empezar con '${p.keyPrefix}'`);
       return;
     }
 
-    // Disable button while saving
     if (this.els.authBtnSave) {
       this.els.authBtnSave.disabled = true;
-      this.els.authBtnSave.textContent = "⏳ Guardando...";
+      this.els.authBtnSave.textContent = "⏳ Verificando...";
     }
     this.els.authError?.classList.add("hidden");
 
     try {
-      const result = await window.lvzero["auth:saveKey"](key);
+      // Save provider + model + key
+      const result = await window.lvzero["providers:saveKey"](pid, key);
       if (!result || !result.success) {
         this._showAuthError(result?.error || "Error al guardar la API Key.");
-        if (this.els.authBtnSave) {
-          this.els.authBtnSave.disabled = false;
-          this.els.authBtnSave.textContent = "✅ Listo, ¡a crear!";
-        }
+        if (this.els.authBtnSave) { this.els.authBtnSave.disabled = false; this.els.authBtnSave.textContent = "✅ Listo, ¡a crear!"; }
         return;
       }
+      // Also set the model
+      if (model) {
+        await window.lvzero["model:setModel"]?.({ provider: pid, model });
+      }
 
-      // ── Success: Show Step 2 (Quick Start) ──
       const step1 = document.getElementById("onboarding-step-1");
       const step2 = document.getElementById("onboarding-step-2");
       if (step1) step1.classList.add("hidden");
       if (step2) step2.classList.remove("hidden");
 
-      this.addLogEntry("success", "🔑 API Key guardada correctamente. ¡Bienvenido a lv-zero!");
+      this.addLogEntry("success", `🔑 ${p.name} configurado correctamente. Modelo: ${model}. ¡Bienvenido a LV-Zero!`);
     } catch (err) {
       this._showAuthError(`Error: ${err.message}`);
-      if (this.els.authBtnSave) {
-        this.els.authBtnSave.disabled = false;
-        this.els.authBtnSave.textContent = "✅ Listo, ¡a crear!";
-      }
+      if (this.els.authBtnSave) { this.els.authBtnSave.disabled = false; this.els.authBtnSave.textContent = "✅ Listo, ¡a crear!"; }
     }
   }
 
@@ -8726,30 +8834,26 @@ ${currentFrameworks.length ? `
     }
 
     // ── 🐝 Swarm: Wire event listeners ──
+    const _unsubs = this.unsubscribers || [];
     if (window.lvzero?.events?.onSwarmStart) {
-      this._unsubscribers.push(window.lvzero.events.onSwarmStart((data) => {
-        this._onSwarmStart(data);
-      }));
+      const fn = window.lvzero.events.onSwarmStart((d) => this._onSwarmStart(d));
+      if (fn) _unsubs.push(fn);
     }
     if (window.lvzero?.events?.onSwarmTaskProgress) {
-      this._unsubscribers.push(window.lvzero.events.onSwarmTaskProgress((data) => {
-        this._onSwarmTaskProgress(data);
-      }));
+      const fn = window.lvzero.events.onSwarmTaskProgress((d) => this._onSwarmTaskProgress(d));
+      if (fn) _unsubs.push(fn);
     }
     if (window.lvzero?.events?.onSwarmTaskComplete) {
-      this._unsubscribers.push(window.lvzero.events.onSwarmTaskComplete((data) => {
-        this._onSwarmTaskComplete(data);
-      }));
+      const fn = window.lvzero.events.onSwarmTaskComplete((d) => this._onSwarmTaskComplete(d));
+      if (fn) _unsubs.push(fn);
     }
     if (window.lvzero?.events?.onSwarmTaskError) {
-      this._unsubscribers.push(window.lvzero.events.onSwarmTaskError((data) => {
-        this._onSwarmTaskError(data);
-      }));
+      const fn = window.lvzero.events.onSwarmTaskError((d) => this._onSwarmTaskError(d));
+      if (fn) _unsubs.push(fn);
     }
     if (window.lvzero?.events?.onSwarmComplete) {
-      this._unsubscribers.push(window.lvzero.events.onSwarmComplete((data) => {
-        this._onSwarmComplete(data);
-      }));
+      const fn = window.lvzero.events.onSwarmComplete((d) => this._onSwarmComplete(d));
+      if (fn) _unsubs.push(fn);
     }
 
     // ── 📋 Code Review: Review button on toolbar (Phase 5) ──
@@ -8775,6 +8879,15 @@ ${currentFrameworks.length ? `
       this.els.authBtnSave.addEventListener("click", () => {
         this._saveApiKey();
       });
+    }
+
+    // ── Auth: Provider change → update models dropdown ──
+    if (this.els.authProviderSelect) {
+      this.els.authProviderSelect.addEventListener("change", () => {
+        this._onProviderChange();
+      });
+      // Initialize models on first load
+      setTimeout(() => this._onProviderChange(), 100);
     }
 
     // ── Onboarding: Close button (Step 2) ──

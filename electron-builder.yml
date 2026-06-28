@@ -1,0 +1,43 @@
+appId: com.lv-zero.app
+productName: lv-zero
+copyright: Copyright © 2026 Luis AVG
+
+files:
+  - src/**/*
+  - ui/**/*
+  - skills/**/*
+  - node_modules/**/*
+  - package.json
+  - LOGOLVZERO.png
+  - "!**/node_modules/*/{CHANGELOG.md,README.md,readme.md,readme}"
+  - "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}"
+  - "!**/node_modules/*.d.ts"
+  - "!**/node_modules/.bin"
+  - "!.env"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: LOGOLVZERO.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: lv-zero
+  artifactName: lv-zero-Setup-${version}.${ext}
+
+directories:
+  output: dist
+
+# Skip native module rebuilding (requires VS build tools with Spectre fixes)
+# Pre-built native modules from node_modules will be used as-is.
+npmRebuild: false
+
+# Disable @electron/rebuild entirely — native modules are pre-built
+# and don't need to be recompiled for the Electron version.
+# This avoids the Spectre-mitigation MSBuild error for node-pty.
+buildDependenciesFromSource: false

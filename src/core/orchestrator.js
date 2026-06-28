@@ -3144,7 +3144,18 @@ Rules:
       }
     }, 60000);
 
-    // 8c. Guardar checkpoint temprano tras los primeros mensajes significativos
+    // 8c. 🧠 GBrain Fusion: Dream Cycle — enriquecimiento nocturno automático
+    try {
+      const { startDreamCycle } = await import(
+        `file://${path.resolve(__dirname, "..", "workflows", "lifecycle", "dream_cycle.js").replace(/\\/g, "/")}`
+      );
+      startDreamCycle(this);
+      this.emit("log", "   💤 Dream cycle iniciado (background)");
+    } catch (err) {
+      this.emit("log", `   ⚠️ Dream cycle no disponible: ${err.message}`);
+    }
+
+    // 8d. Guardar checkpoint temprano tras los primeros mensajes significativos
     this._earlyCheckpointDone = false;
 
     // 8d. Iniciar auto-healing (health check periódico cada 60s)

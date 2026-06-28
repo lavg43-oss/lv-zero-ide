@@ -17,6 +17,17 @@ asar_content/node_modules/
 dist/
 dist_new/
 out/
+build_out/
+_stage/
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.snap
+*.deb
+*.rpm
+*.blockmap
+*.zip
 
 # ─── Logs ─────────────────────────────────────────────────────────────────
 logs/
@@ -78,7 +89,9 @@ asar_content/
 # ─── Project Specific ─────────────────────────────────────────────────────
 plans/
 tools/
+scripts/
 skills/.snapshots/
+$null
 
 # ─── Local lib (user-specific config) ─────────────────────────────────────
 _lib/

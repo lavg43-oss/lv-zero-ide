@@ -2041,6 +2041,188 @@ function setupIPC() {
     }
   });
 
+  // ── Providers: List all known providers ─────────────────────────────────
+  // Inline provider registry (mirrors src/core/provider_registry.js for CJS compat)
+  const PROVIDER_REGISTRY = [
+    { id: "deepseek", name: "DeepSeek", type: "deepseek", baseURL: "https://api.deepseek.com/v1", models: ["deepseek-v4-flash","deepseek-v4-pro","deepseek-chat","deepseek-reasoner"], website: "https://platform.deepseek.com/api_keys", defaultModel: "deepseek-v4-flash", envKey: "DEEPSEEK_API_KEY", supportsStreaming: true, supportsReasoning: true, notes: "Modelo principal de lv-zero. Soporta razonamiento profundo (reasoning_content)." },
+    { id: "glm", name: "GLM (Zhipu AI)", type: "openai-compatible", baseURL: "https://open.bigmodel.cn/api/paas/v4", models: ["glm-5.2","glm-5.2-ultra","glm-5.1","glm-4-plus","glm-4v-plus"], website: "https://bigmodel.cn", defaultModel: "glm-5.2", envKey: "GLM_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "GLM 5.2 es el modelo más reciente de Zhipu AI. API compatible con OpenAI." },
+    { id: "openai", name: "OpenAI", type: "openai-compatible", baseURL: "https://api.openai.com/v1", models: ["gpt-4o","gpt-4o-mini","gpt-4.1","gpt-4.1-mini","gpt-4.1-nano","o3","o3-mini","o4-mini"], website: "https://platform.openai.com/api-keys", defaultModel: "gpt-4o", envKey: "OPENAI_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Modelos GPT-4o y o3 de OpenAI." },
+    { id: "anthropic", name: "Anthropic Claude", type: "anthropic", baseURL: "https://api.anthropic.com/v1", models: ["claude-4-opus","claude-4-sonnet","claude-3.5-haiku"], website: "https://console.anthropic.com", defaultModel: "claude-4-sonnet", envKey: "ANTHROPIC_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Claude 4 Sonnet es el modelo recomendado de Anthropic." },
+    { id: "gemini", name: "Google Gemini", type: "gemini", baseURL: "https://generativelanguage.googleapis.com/v1beta", models: ["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"], website: "https://aistudio.google.com/apikey", defaultModel: "gemini-2.5-flash", envKey: "GEMINI_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Gemini 2.5 Flash es rápido y gratuito." },
+    { id: "qwen", name: "Qwen (Alibaba Cloud)", type: "openai-compatible", baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", models: ["qwen-3-72b","qwen-3-32b","qwen-3-14b","qwen-3-7b","qwen-max","qwen-plus","qwen-turbo"], website: "https://bailian.console.aliyun.com", defaultModel: "qwen-3-72b", envKey: "QWEN_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Qwen 3 es la serie más reciente de Alibaba Cloud." },
+    { id: "xai", name: "xAI (Grok)", type: "openai-compatible", baseURL: "https://api.x.ai/v1", models: ["grok-3","grok-3-mini","grok-3-vision"], website: "https://console.x.ai", defaultModel: "grok-3", envKey: "XAI_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Grok 3 de xAI (Elon Musk)." },
+    { id: "groq", name: "Groq", type: "openai-compatible", baseURL: "https://api.groq.com/openai/v1", models: ["llama-4-70b","llama-4-8b","mixtral-8x7b","gemma-4-31b","gemma-4-9b"], website: "https://console.groq.com/keys", defaultModel: "llama-4-70b", envKey: "GROQ_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Groq ofrece inferencia ultrarrápida con LPU." },
+    { id: "openrouter", name: "OpenRouter", type: "openai-compatible", baseURL: "https://openrouter.ai/api/v1", models: ["openai/gpt-4o","openai/gpt-4o-mini","anthropic/claude-4-sonnet","google/gemini-2.5-flash","meta-llama/llama-4-70b","deepseek/deepseek-v4-flash","qwen/qwen-3-72b"], website: "https://openrouter.ai/keys", defaultModel: "openai/gpt-4o", envKey: "OPENROUTER_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "OpenRouter unifica múltiples proveedores en una sola API." },
+    { id: "together", name: "Together AI", type: "openai-compatible", baseURL: "https://api.together.xyz/v1", models: ["meta-llama/llama-4-70b","deepseek-ai/deepseek-v3","mistralai/mistral-large","Qwen/Qwen3-72B"], website: "https://together.ai/api-keys", defaultModel: "meta-llama/llama-4-70b", envKey: "TOGETHER_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Together AI ofrece modelos open-source en la nube." },
+    { id: "nvidia", name: "NVIDIA NIM", type: "openai-compatible", baseURL: "https://integrate.api.nvidia.com/v1", models: ["nvidia/nemotron-3-super-120b","meta/llama-4-70b","mistralai/mistral-large"], website: "https://build.nvidia.com", defaultModel: "nvidia/nemotron-3-super-120b", envKey: "NVIDIA_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "NVIDIA NIM ofrece modelos optimizados en GPUs NVIDIA." },
+    { id: "fireworks", name: "Fireworks AI", type: "openai-compatible", baseURL: "https://api.fireworks.ai/inference/v1", models: ["accounts/fireworks/models/llama-v4-70b","accounts/fireworks/models/qwen3-72b"], website: "https://fireworks.ai/api-keys", defaultModel: "accounts/fireworks/models/llama-v4-70b", envKey: "FIREWORKS_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Fireworks AI ofrece inferencia rápida de modelos open-source." },
+    { id: "custom", name: "Custom URL", type: "openai-compatible", baseURL: "", models: [], website: "", defaultModel: "", envKey: "CUSTOM_API_KEY", supportsStreaming: true, supportsReasoning: false, notes: "Proveedor personalizado compatible con OpenAI API." },
+  ];
+
+  ipcMain.handle("providers:list", async () => {
+    return PROVIDER_REGISTRY.map((p) => ({
+      id: p.id,
+      name: p.name,
+      type: p.type,
+      baseURL: p.baseURL,
+      models: p.models,
+      website: p.website,
+      defaultModel: p.defaultModel,
+      envKey: p.envKey,
+      notes: p.notes,
+      configured: !!process.env[p.envKey],
+      supportsStreaming: p.supportsStreaming,
+      supportsReasoning: p.supportsReasoning,
+    }));
+  });
+
+  ipcMain.handle("providers:verify", async (_event, providerId, apiKey, baseURL) => {
+    try {
+      const provider = PROVIDER_REGISTRY.find((p) => p.id === providerId);
+      if (!provider) return { success: false, error: `Provider "${providerId}" not found` };
+
+      const testURL = baseURL || provider.baseURL;
+      const testModel = provider.defaultModel;
+
+      // Try a simple models list request to verify the API key works
+      const response = await fetch(`${testURL.replace(/\/+$/, "")}/models`, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          success: true,
+          message: `✅ Conectado a ${provider.name}`,
+          models: data?.data?.map((m) => m.id || m.name) || [],
+        };
+      } else if (response.status === 401) {
+        return { success: false, error: "API Key inválida. Verifica que la key sea correcta." };
+      } else {
+        // Some providers don't support /models endpoint — try a simple chat completion
+        try {
+          const chatResponse = await fetch(`${testURL.replace(/\/+$/, "")}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: testModel,
+              messages: [{ role: "user", content: "ping" }],
+              max_tokens: 1,
+            }),
+          });
+
+          if (chatResponse.ok) {
+            return { success: true, message: `✅ Conectado a ${provider.name}`, models: [testModel] };
+          }
+
+          const errData = await chatResponse.json().catch(() => ({}));
+          return {
+            success: false,
+            error: errData?.error?.message || `HTTP ${chatResponse.status}: ${chatResponse.statusText}`,
+          };
+        } catch (chatErr) {
+          return { success: false, error: `Error de conexión: ${chatErr.message}` };
+        }
+      }
+    } catch (err) {
+      return { success: false, error: `Error de conexión: ${err.message}` };
+    }
+  });
+
+  // ── Providers: Save API Key (multi-provider) ───────────────────────────
+  // Maps provider IDs to their envKey for process.env injection.
+  // This is a lightweight inline map (not importing the ESM provider_registry).
+  const PROVIDER_ENV_KEYS = {
+    deepseek: "DEEPSEEK_API_KEY",
+    openai: "OPENAI_API_KEY",
+    anthropic: "ANTHROPIC_API_KEY",
+    gemini: "GEMINI_API_KEY",
+    glm: "GLM_API_KEY",
+    qwen: "QWEN_API_KEY",
+    xai: "XAI_API_KEY",
+    groq: "GROQ_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    together: "TOGETHER_API_KEY",
+    nvidia: "NVIDIA_API_KEY",
+    fireworks: "FIREWORKS_API_KEY",
+    custom: "CUSTOM_API_KEY",
+  };
+  const PROVIDER_NAMES = {
+    deepseek: "DeepSeek",
+    openai: "OpenAI",
+    anthropic: "Anthropic Claude",
+    gemini: "Google Gemini",
+    glm: "GLM (Zhipu AI)",
+    qwen: "Qwen (Alibaba Cloud)",
+    xai: "xAI (Grok)",
+    groq: "Groq",
+    openrouter: "OpenRouter",
+    together: "Together AI",
+    nvidia: "NVIDIA NIM",
+    fireworks: "Fireworks AI",
+    custom: "Custom URL",
+  };
+
+  ipcMain.handle("providers:saveKey", async (_event, providerId, apiKey) => {
+    try {
+      const envKey = PROVIDER_ENV_KEYS[providerId];
+      const providerName = PROVIDER_NAMES[providerId] || providerId;
+
+      if (!envKey) {
+        return { success: false, error: `Provider "${providerId}" not found` };
+      }
+
+      // Save to process.env for current session
+      process.env[envKey] = apiKey;
+
+      // Also save to secret storage for persistence
+      if (secretStorageInstance) {
+        const result = await secretStorageInstance.saveKey(providerId, apiKey);
+        if (!result.success) {
+          console.warn(`[Main] SecretStorage saveKey failed for ${providerId}:`, result.error);
+        }
+      }
+
+      // Also save to .env file as fallback
+      try {
+        const envPath = path.resolve(__dirname, "..", "..", ".env");
+        let content = "";
+        if (fs.existsSync(envPath)) {
+          content = fs.readFileSync(envPath, "utf-8");
+        }
+
+        const keyLine = `${envKey}=${apiKey}`;
+        const regex = new RegExp(`^${envKey}=.*$`, "m");
+        if (regex.test(content)) {
+          content = content.replace(regex, keyLine);
+        } else {
+          content += (content.endsWith("\n") ? "" : "\n") + keyLine + "\n";
+        }
+
+        fs.writeFileSync(envPath, content, "utf-8");
+      } catch (envErr) {
+        console.warn(`[Main] Could not save ${envKey} to .env:`, envErr.message);
+      }
+
+      // Reload environment and reinitialize the client
+      if (orchestrator && orchestrator.loadEnv) {
+        orchestrator.loadEnv();
+      }
+      if (orchestrator && orchestrator.initClient) {
+        await orchestrator.initClient();
+      }
+
+      return { success: true, message: `✅ API Key guardada para ${providerName}` };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  });
+
   // ── Auth: Save API Key ────────────────────────────────────────────────
   ipcMain.handle("auth:saveKey", async (_event, apiKey) => {
     try {

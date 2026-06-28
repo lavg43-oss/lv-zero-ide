@@ -477,6 +477,128 @@ function setupIPC() {
 
     return { success: true, message: `✅ API Key guardada para ${provider.name}` };
   });
+
+  // ── 🌐 Agent Browser (CDP-based, no Playwright needed) ────────────────────
+
+  /** @type {Map<string, { wc: import('electron').WebContents, url: string }>} */
+  const _browserSessions = new Map();
+
+  ipcMain.handle("browser:open", async (_event, url, options = {}) => {
+    try {
+      const sesId = `browser-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+      const wc = (new BrowserWindow({ show: false, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } })).webContents;
+      const dp = wc.debugger;
+      await dp.attach();
+      await dp.sendCommand("Page.enable");
+      await dp.sendCommand("Page.navigate", { url: url || "about:blank" });
+      await new Promise(r => dp.on("message", (e, msg) => { if (msg.method === "Page.frameStoppedLoading") r(); }));
+      _browserSessions.set(sesId, { wc, url: url || "about:blank" });
+      wc.on("destroyed", () => _browserSessions.delete(sesId));
+      return { success: true, sessionId: sesId, url: url || "about:blank" };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:navigate", async (_event, sessionId, url) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      await ses.wc.debugger.sendCommand("Page.navigate", { url });
+      ses.url = url;
+      return { success: true, url };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:screenshot", async (_event, sessionId) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      const image = await ses.wc.capturePage();
+      const buf = image.toPNG();
+      return { success: true, screenshot: buf.toString("base64"), size: buf.length };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:execute-script", async (_event, sessionId, code) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      const result = await ses.wc.executeJavaScript(code);
+      return { success: true, result: typeof result === "object" ? JSON.stringify(result) : String(result) };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:get-content", async (_event, sessionId) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      const text = await ses.wc.executeJavaScript("document.body?.innerText || ''");
+      const html = await ses.wc.executeJavaScript("document.documentElement?.outerHTML || ''");
+      return { success: true, textContent: text.substring(0, 5000), htmlPreview: html.substring(0, 2000) };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:click", async (_event, sessionId, selector) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      await ses.wc.executeJavaScript(`document.querySelector('${selector.replace(/'/g, "\\'")}')?.click()`);
+      return { success: true, selector };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:fill", async (_event, sessionId, selector, value) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      const safeVal = value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      await ses.wc.executeJavaScript(`
+        const el = document.querySelector('${selector.replace(/'/g, "\\'")}');
+        if (el) { el.value = '${safeVal}'; el.dispatchEvent(new Event('input', { bubbles: true })); }
+      `);
+      return { success: true, selector, value };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:get-text", async (_event, sessionId, selector) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      const text = await ses.wc.executeJavaScript(`document.querySelector('${selector.replace(/'/g, "\\'")}')?.textContent || ''`);
+      return { success: true, selector, text: String(text) };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:wait-for", async (_event, sessionId, selector, timeout = 5000) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      const start = Date.now();
+      while (Date.now() - start < timeout) {
+        const exists = await ses.wc.executeJavaScript(`!!document.querySelector('${selector.replace(/'/g, "\\'")}')`);
+        if (exists) return { success: true, selector, waited: Date.now() - start };
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return { success: false, error: `Timeout waiting for selector: ${selector}` };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:logs", async (_event, sessionId) => {
+    return { success: true, logs: [] }; // CDP console logs would need Page.enable + event listener
+  });
+
+  ipcMain.handle("browser:close", async (_event, sessionId) => {
+    const ses = _browserSessions.get(sessionId);
+    if (!ses) return { success: false, error: "Session not found" };
+    try {
+      ses.wc.destroy();
+      _browserSessions.delete(sessionId);
+      return { success: true };
+    } catch (err) { return { success: false, error: err.message }; }
+  });
+
+  ipcMain.handle("browser:list-sessions", async () => {
+    return { success: true, sessions: Array.from(_browserSessions.entries()).map(([id, s]) => ({ id, url: s.url })) };
+  });
 }
 
 // ─── Orchestrator Events → IPC Forwarding ──────────────────────────────────
