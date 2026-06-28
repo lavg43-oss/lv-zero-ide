@@ -437,6 +437,9 @@ async function init() {
   // Create main window
   createWindow();
 
+  // Setup Content Security Policy (suppresses Electron CSP warning)
+  setupCSP();
+
   // Setup application menu (File > Project Management, View > Toggle Panels)
   setupAppMenu();
 
@@ -672,6 +675,35 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+// ─── Content Security Policy ─────────────────────────────────────────────────
+// Set CSP via session to suppress Electron's "Insecure Content-Security-Policy"
+// warning. The meta tag in index.html also sets CSP, but this ensures it's
+// applied at the session level for all loaded content.
+function setupCSP() {
+  try {
+    if (session && session.defaultSession && session.defaultSession.webRequest) {
+      session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            "Content-Security-Policy": [
+              "default-src 'self'; " +
+              "style-src 'self' 'unsafe-inline'; " +
+              "script-src 'self' 'unsafe-eval'; " +
+              "img-src 'self' data:; " +
+              "font-src 'self' data:; " +
+              "connect-src 'self' http://localhost:* ws://localhost:* https:;"
+            ],
+          },
+        });
+      });
+      console.log('[Main] CSP configured via session');
+    }
+  } catch (err) {
+    console.warn('[Main] Could not set CSP via session:', err.message);
+  }
 }
 
 // ─── Application Menu (with File → Project Management) ──────────────────────
