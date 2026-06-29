@@ -642,6 +642,9 @@ Rules:
    * Primero carga el .env de lv-zero (el de siempre), y opcionalmente
    * también carga el .env del proyecto activo (sobrescribe variables).
    *
+   * En modo portable (app.asar), busca el .env en el directorio del
+   * ejecutable como fallback, ya que dentro del asar es de solo lectura.
+   *
    * @param {string} [projectEnvPath] - Ruta opcional al .env del proyecto activo
    */
   loadEnv(projectEnvPath) {
@@ -649,6 +652,18 @@ Rules:
     const envPath = path.resolve(__dirname, "..", "..", ".env");
     if (fs.existsSync(envPath)) {
       this._parseEnvFile(envPath, true);
+    } else {
+      // Fallback para modo portable: buscar .env junto al ejecutable
+      try {
+        const exeDir = path.dirname(process.execPath);
+        const portableEnv = path.resolve(exeDir, ".env");
+        if (fs.existsSync(portableEnv)) {
+          this._parseEnvFile(portableEnv, true);
+          this.emit("log", `   📁 .env cargado desde directorio portable: ${portableEnv}`);
+        }
+      } catch (_) {
+        // Ignorar errores de process.execPath (entornos headless/CI)
+      }
     }
 
     // ── 1b. Preservar credenciales de base de datos de lv-zero ─────────
