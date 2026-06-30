@@ -6319,6 +6319,12 @@ ${currentFrameworks.length ? `
       events.on("task_complete", (data) => {
         this._showTaskBanner(data);
       }),
+
+      // ── 🔑 Auth Required — Show onboarding when no API key is configured ──
+      events.on("auth_required", (data) => {
+        this.addLogEntry("warn", `🔑 ${data.message || "API key required — showing setup"}`);
+        this._showAuthModal();
+      }),
     ];
 
     // ── MCP Status Change (must be outside the array to avoid TDZ) ─────

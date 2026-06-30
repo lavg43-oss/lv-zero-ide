@@ -780,8 +780,7 @@ Rules:
 
     // Mock provider doesn't need an API key — it's used for testing/CI.
     if (!CONFIG.apiKey && provider !== "mock") {
-      const err = new ConfigurationError("LLM_API_KEY / DEEPSEEK_API_KEY no encontrada en .env");
-      this.emit("error", err.toJSON());
+      this.emit("warn", "🔑 No API key configured — user will be prompted via onboarding UI");
       return null;
     }
 
@@ -1776,9 +1775,10 @@ Rules:
    */
   async agentLoop(userInput) {
     if (!this.llm || !this.llm.isReady()) {
-      const errorMsg = "❌ LLM no está configurado. Revisa tu .env";
-      this.emit("error", { type: "client", message: errorMsg });
-      return errorMsg;
+      // No LLM configured — tell the UI to show the onboarding/auth modal
+      this.emit("auth_required", { message: "No API key configured. Please set up your provider." });
+      this.emit("warn", "🔑 No API key configured — user needs to set up a provider");
+      return "🔑 No API key configured. Please set up your provider in the settings panel or use the onboarding wizard.";
     }
 
     if (this.isRunning) {
